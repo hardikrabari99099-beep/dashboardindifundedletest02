@@ -1011,6 +1011,171 @@ async def root():
     return {"message": "IndiFunded API"}
 
 # ============================================================
+# WEEKLY HIGHEST PAYOUT (per plan, from certificates in last 7 days)
+# ============================================================
+@api.get("/weekly-highest-payouts")
+async def weekly_highest_payouts():
+    """Return the highest payout certificate per plan for the last 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    pipeline = [
+        {"$match": {"visible": True, "created_at": {"$gte": since}}},
+        {"$sort": {"amount": -1}},
+        {"$group": {
+            "_id": "$plan",
+            "trader_name": {"$first": "$trader_name"},
+            "amount": {"$first": "$amount"},
+            "plan": {"$first": "$plan"},
+            "account_size": {"$first": "$account_size"},
+            "payout_date": {"$first": "$payout_date"},
+            "image_url": {"$first": "$image_url"},
+        }},
+        {"$sort": {"amount": -1}},
+    ]
+    rows = await db.certificates.aggregate(pipeline).to_list(50)
+    # Fallback: if none in last 7 days, use all-time highest per plan
+    if not rows:
+        pipeline2 = [
+            {"$match": {"visible": True}},
+            {"$sort": {"amount": -1}},
+            {"$group": {
+                "_id": "$plan",
+                "trader_name": {"$first": "$trader_name"},
+                "amount": {"$first": "$amount"},
+                "plan": {"$first": "$plan"},
+                "account_size": {"$first": "$account_size"},
+                "payout_date": {"$first": "$payout_date"},
+                "image_url": {"$first": "$image_url"},
+            }},
+            {"$sort": {"amount": -1}},
+        ]
+        rows = await db.certificates.aggregate(pipeline2).to_list(50)
+    for r in rows:
+        r.pop("_id", None)
+    return rows
+
+# ============================================================
+# TRADER LEAGUE — registration + admin toggle + Razorpay
+# ============================================================
+class LeagueRegistrationCreate(BaseModel):
+    full_name: str
+    email: EmailStr
+    phone: str
+    is_existing_trader: bool = False
+    trader_id: str = ""
+    notes: str = ""
+
+class LeagueRegistration(LeagueRegistrationCreate):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    amount: float = 0
+    status: str = "pending_payment"   # pending_payment | completed | rejected
+    razorpay_qr_id: str = ""
+    razorpay_qr_image: str = ""
+    razorpay_payment_id: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+LEAGUE_FEE_EXISTING = 999.0
+LEAGUE_FEE_NEW = 1499.0
+
+async def _league_enabled() -> bool:
+    doc = await db.system_meta.find_one({"key": "league_enabled"})
+    return bool(doc and doc.get("value"))
+
+@api.get("/league/config")
+async def league_config():
+    return {
+        "enabled": await _league_enabled(),
+        "fee_existing": LEAGUE_FEE_EXISTING,
+        "fee_new": LEAGUE_FEE_NEW,
+    }
+
+@api.put("/league/config")
+async def set_league_config(body: dict, user: dict = Depends(get_current_admin)):
+    enabled = bool(body.get("enabled"))
+    await db.system_meta.update_one(
+        {"key": "league_enabled"},
+        {"$set": {"key": "league_enabled", "value": enabled,
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    return {"enabled": enabled}
+
+@api.post("/league/register")
+async def league_register(body: LeagueRegistrationCreate):
+    if not await _league_enabled():
+        raise HTTPException(403, "Trader League registration is currently closed")
+    if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+        raise HTTPException(500, "Razorpay is not configured")
+    if body.is_existing_trader and not body.trader_id.strip():
+        raise HTTPException(400, "Trader ID is required for existing traders")
+    amount = LEAGUE_FEE_EXISTING if body.is_existing_trader else LEAGUE_FEE_NEW
+    reg = LeagueRegistration(**body.model_dump(), amount=amount)
+    amount_paise = int(round(amount * 100))
+    payload = {
+        "type": "upi_qr",
+        "name": f"IndiFunded League - {reg.full_name[:20]}",
+        "usage": "single_use",
+        "fixed_amount": True,
+        "payment_amount": amount_paise,
+        "description": f"IndiFunded Trader League Registration"[:100],
+        "notes": {"reg_id": reg.id, "email": body.email, "kind": "league"},
+    }
+    try:
+        resp = requests.post(f"{RAZORPAY_BASE}/payments/qr_codes", json=payload,
+                             auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET), timeout=20)
+    except requests.RequestException as e:
+        raise HTTPException(502, f"Razorpay request failed: {e}")
+    if resp.status_code not in (200, 201):
+        logging.error("Razorpay league QR failed: %s %s", resp.status_code, resp.text)
+        raise HTTPException(502, f"Razorpay error: {resp.text[:300]}")
+    qr = resp.json()
+    reg.razorpay_qr_id = qr.get("id", "")
+    reg.razorpay_qr_image = qr.get("image_url", "")
+    await db.league_registrations.insert_one(reg.model_dump())
+    return {
+        "registration_id": reg.id,
+        "qr_image": reg.razorpay_qr_image,
+        "qr_id": reg.razorpay_qr_id,
+        "amount": amount,
+    }
+
+@api.get("/league/status/{registration_id}")
+async def league_status(registration_id: str):
+    reg = await db.league_registrations.find_one({"id": registration_id}, {"_id": 0})
+    if not reg:
+        raise HTTPException(404, "Registration not found")
+    if reg.get("status") == "completed":
+        return {"status": "completed", "amount": reg.get("amount")}
+    qr_id = reg.get("razorpay_qr_id")
+    if not qr_id:
+        return {"status": reg.get("status"), "amount": reg.get("amount")}
+    try:
+        resp = requests.get(f"{RAZORPAY_BASE}/payments/qr_codes/{qr_id}/payments",
+                            auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET), timeout=15)
+        if resp.status_code == 200:
+            items = resp.json().get("items", [])
+            captured = next((p for p in items if p.get("status") == "captured"), None)
+            if captured:
+                await db.league_registrations.update_one(
+                    {"id": registration_id},
+                    {"$set": {"status": "completed",
+                              "razorpay_payment_id": captured.get("id", "")}})
+                return {"status": "completed", "amount": reg.get("amount"),
+                        "razorpay_payment_id": captured.get("id")}
+    except requests.RequestException:
+        pass
+    return {"status": reg.get("status"), "amount": reg.get("amount")}
+
+@api.get("/league/registrations")
+async def list_league_registrations(user: dict = Depends(get_current_admin)):
+    return await db.league_registrations.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+@api.delete("/league/registrations/{reg_id}")
+async def delete_league_registration(reg_id: str, user: dict = Depends(get_current_admin)):
+    await db.league_registrations.delete_one({"id": reg_id})
+    return {"ok": True}
+
+
+# ============================================================
 # GEMINI CERTIFICATE OCR — auto-detect payout details from image
 # ============================================================
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
@@ -1292,18 +1457,23 @@ async def startup():
             {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}},
         )
 
-    # ---- Migration: ensure original_price is set on the 3 default plans ----
+    # ---- Migration: ensure original_price is set on the 3 default plans (only if missing) ----
     plan_price_map = {
         "Starter":  {"challenge_fee": 3999.0,  "original_price": 5000.0},
         "Standard": {"challenge_fee": 7999.0,  "original_price": 9999.0},
         "Pro":      {"challenge_fee": 14999.0, "original_price": 18999.0},
     }
     for pname, prices in plan_price_map.items():
-        await db.plans.update_one({"name": pname}, {"$set": prices})
+        # Only set if the plan document doesn't have original_price yet — never overwrite admin edits.
+        await db.plans.update_one(
+            {"name": pname, "original_price": {"$in": [None, 0]}},
+            {"$set": {"original_price": prices["original_price"]}},
+        )
 
-    # Seed provided payout certificate (idempotent by image_url)
+    # Seed provided payout certificate ONCE (never re-seed after admin deletes it)
     seed_cert_url = "https://customer-assets.emergentagent.com/job_funded-platform/artifacts/3j4e5txj_Screenshot%202026-07-04%20163903.png"
-    if not await db.certificates.find_one({"image_url": seed_cert_url}):
+    seed_marker = await db.system_meta.find_one({"key": "seed_cert_done"})
+    if not seed_marker and await db.certificates.count_documents({}) == 0:
         seed_cert = Certificate(
             image_url=seed_cert_url,
             trader_name="Vivek Raut",
@@ -1315,6 +1485,7 @@ async def startup():
             visible=True,
         )
         await db.certificates.insert_one(seed_cert.model_dump())
+        await db.system_meta.insert_one({"key": "seed_cert_done", "at": datetime.now(timezone.utc).isoformat()})
 
     # Seed default plans
     if await db.plans.count_documents({}) == 0:

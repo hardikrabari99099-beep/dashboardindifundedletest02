@@ -10,6 +10,7 @@ import LivePayoutCounter from "../components/LivePayoutCounter";
 import TrustStrip from "../components/TrustStrip";
 import RatingsBar from "../components/RatingsBar";
 import ProfitCalculator from "../components/ProfitCalculator";
+import WeeklyHighestPayout from "../components/WeeklyHighestPayout";
 import { ArrowRight, ShieldCheck, Trophy, Flame, Rocket, Star, CheckCircle2 } from "lucide-react";
 
 export default function Home() {
@@ -160,6 +161,9 @@ export default function Home() {
 
       {/* TESTIMONIALS */}
       <PayoutCertificates />
+
+      {/* WEEKLY HIGHEST PAYOUT — per plan, last 7 days */}
+      <WeeklyHighestPayout />
 
       {/* PROFIT CALCULATOR */}
       <ProfitCalculator />

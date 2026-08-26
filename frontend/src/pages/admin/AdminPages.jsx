@@ -737,3 +737,115 @@ export function AdminReferrals() {
     </div>
   );
 }
+
+// ===== Admin Trader League =====
+export function AdminLeague() {
+  const [config, setConfig] = useState({ enabled: false, fee_existing: 999, fee_new: 1499 });
+  const [rows, setRows] = useState([]);
+  const load = async () => {
+    try {
+      const c = await api.get("/league/config");
+      setConfig(c.data);
+      const r = await api.get("/league/registrations");
+      setRows(r.data);
+    } catch (e) {
+      toast.error(formatApiError(e.response?.data?.detail));
+    }
+  };
+  useEffect(() => { load(); }, []);
+  const toggle = async () => {
+    try {
+      const { data } = await api.put("/league/config", { enabled: !config.enabled });
+      setConfig({ ...config, enabled: data.enabled });
+      toast.success(data.enabled ? "Registration is now OPEN" : "Registration is now CLOSED");
+    } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
+  };
+  const del = async (id) => {
+    if (!window.confirm("Delete this registration?")) return;
+    await api.delete(`/league/registrations/${id}`);
+    toast.success("Deleted"); load();
+  };
+  const statusBadge = (s) => {
+    const map = {
+      "pending_payment": { bg: "rgba(245,182,56,0.15)", text: "#ffd166", label: "Pending" },
+      "completed": { bg: "rgba(41,211,154,0.15)", text: "#29d39a", label: "Paid" },
+      "rejected": { bg: "rgba(255,85,116,0.15)", text: "#ff5574", label: "Rejected" },
+    };
+    const m = map[s] || map["pending_payment"];
+    return <span className="text-xs font-mono uppercase tracking-wider px-2.5 py-1 rounded-full" style={{background:m.bg, color:m.text}}>{m.label}</span>;
+  };
+
+  const paidCount = rows.filter(r => r.status === "completed").length;
+  const totalRevenue = rows.filter(r => r.status === "completed").reduce((a,r)=>a+(r.amount||0),0);
+
+  return (
+    <div>
+      <div className="chip mb-3"><Trophy size={12}/> Trader League</div>
+      <h1 className="font-display text-4xl">Trader League</h1>
+      <p className="text-sm text-[var(--muted)] mt-2">Manage league registration availability and view sign-ups.</p>
+
+      <div className="grid md:grid-cols-3 gap-4 mt-8">
+        <div className="card-panel p-5">
+          <div className="text-xs uppercase tracking-widest font-mono text-[var(--muted-2)]">Public Registration</div>
+          <div className="mt-3 flex items-center justify-between">
+            <span className={`text-lg font-display ${config.enabled ? "text-[var(--emerald)]" : "text-[var(--rose)]"}`}>
+              {config.enabled ? "OPEN" : "CLOSED"}
+            </span>
+            <button onClick={toggle} className={`rounded-full px-4 py-2 text-xs font-mono uppercase tracking-wider ${config.enabled ? "btn-ghost" : "btn-amber"}`} data-testid="admin-league-toggle">
+              {config.enabled ? "Turn OFF" : "Turn ON"}
+            </button>
+          </div>
+          <p className="text-[11px] text-[var(--muted-2)] mt-3 leading-relaxed">Turn OFF to hide the /league page and reject new sign-ups. Existing registrations remain intact.</p>
+        </div>
+        <div className="card-panel p-5">
+          <div className="text-xs uppercase tracking-widest font-mono text-[var(--muted-2)]">Paid Registrations</div>
+          <div className="font-display text-4xl mt-3 text-[var(--accent)]">{paidCount}</div>
+          <div className="text-[11px] text-[var(--muted-2)] mt-2">out of {rows.length} total</div>
+        </div>
+        <div className="card-panel p-5">
+          <div className="text-xs uppercase tracking-widest font-mono text-[var(--muted-2)]">Revenue Collected</div>
+          <div className="font-display text-4xl mt-3">{formatINR(totalRevenue)}</div>
+          <div className="text-[11px] text-[var(--muted-2)] mt-2">Existing {formatINR(config.fee_existing)} · New {formatINR(config.fee_new)}</div>
+        </div>
+      </div>
+
+      <div className="card-panel overflow-hidden mt-8">
+        <Table>
+          <TableHeader><TableRow className="border-[var(--border)]">
+            <TableHead>Trader</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Trader ID</TableHead>
+            <TableHead>Amount</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {rows.map(r => (
+              <TableRow key={r.id} className="border-[var(--border)]" data-testid={`league-row-${r.id}`}>
+                <TableCell>
+                  <div>{r.full_name}</div>
+                  <div className="text-xs text-[var(--muted-2)]">{r.email}</div>
+                  <div className="text-xs text-[var(--muted-2)] font-mono">{r.phone}</div>
+                </TableCell>
+                <TableCell>
+                  <span className="text-xs font-mono uppercase tracking-wider">{r.is_existing_trader ? "Existing" : "New"}</span>
+                </TableCell>
+                <TableCell className="font-mono text-xs">{r.trader_id || "—"}</TableCell>
+                <TableCell className="text-[var(--accent)] font-mono">{formatINR(r.amount)}</TableCell>
+                <TableCell>{statusBadge(r.status)}</TableCell>
+                <TableCell className="text-xs text-[var(--muted)]">{new Date(r.created_at).toLocaleString()}</TableCell>
+                <TableCell className="text-right">
+                  <button onClick={()=>del(r.id)} className="btn-ghost px-2 py-1.5 rounded-md text-[var(--rose)] inline-flex" data-testid={`league-delete-${r.id}`}><Trash2 size={14}/></button>
+                </TableCell>
+              </TableRow>
+            ))}
+            {!rows.length && (
+              <TableRow className="border-[var(--border)]"><TableCell colSpan={7} className="text-center text-[var(--muted)] py-8">No registrations yet.</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}

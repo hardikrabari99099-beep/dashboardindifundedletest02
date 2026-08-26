@@ -16,6 +16,7 @@ const links = [
   { to: "/admin/payouts", label: "Payouts", icon: <Wallet size={16}/>},
   { to: "/admin/leads", label: "Leads", icon: <Users size={16}/>},
   { to: "/admin/orders", label: "Orders", icon: <ShoppingBag size={16}/>},
+  { to: "/admin/league", label: "Trader League", icon: <Trophy size={16}/>},
 ];
 
 export default function AdminLayout() {

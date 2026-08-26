@@ -1,15 +1,17 @@
 import { Link, NavLink } from "react-router-dom";
 import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSettings } from "../context/SettingsContext";
+import { api } from "../lib/api";
 import BrandLogo from "./BrandLogo";
 
-const links = [
+const baseLinks = [
   { to: "/", label: "Home" },
   { to: "/challenges", label: "Challenges" },
   { to: "/rules", label: "Rules" },
   { to: "/payouts", label: "Payouts" },
   { to: "/leaderboard", label: "Leaderboard" },
+  { to: "/league", label: "Trader League", flag: "league" },
   { to: "/blog", label: "Blog" },
   { to: "/tools", label: "Tools" },
   { to: "/refer", label: "Refer & Earn" },
@@ -19,7 +21,12 @@ const links = [
 
 export const Header = () => {
   const [open, setOpen] = useState(false);
+  const [leagueEnabled, setLeagueEnabled] = useState(false);
   const { settings } = useSettings();
+  useEffect(() => {
+    api.get("/league/config").then(r => setLeagueEnabled(!!r.data?.enabled)).catch(() => {});
+  }, []);
+  const links = baseLinks.filter(l => l.flag !== "league" || leagueEnabled);
   return (
     <header className="sticky top-0 z-50 glass border-b border-[var(--border)]" data-testid="site-header">
       <div className="container-xl flex items-center justify-between py-2.5 md:py-4">

@@ -262,6 +262,26 @@ export default function Challenges() {
                   <span>Waiting for payment… confirms automatically.</span>
                 </div>
 
+                {qr?.qr_image && (
+                  <div className="mt-4 grid grid-cols-3 gap-2" data-testid="upi-app-buttons">
+                    <a href={qr.qr_image} target="_blank" rel="noopener noreferrer"
+                       className="flex flex-col items-center gap-1.5 rounded-xl border border-[var(--border-hi)] bg-[var(--bg-2)] px-3 py-2.5 hover:border-[var(--accent)] transition-colors" data-testid="pay-gpay">
+                      <div className="w-8 h-8 rounded-full bg-white grid place-items-center text-[10px] font-bold text-[#4285F4]">GPay</div>
+                      <div className="text-[11px] text-white/90">Pay via GPay</div>
+                    </a>
+                    <a href={qr.qr_image} target="_blank" rel="noopener noreferrer"
+                       className="flex flex-col items-center gap-1.5 rounded-xl border border-[var(--border-hi)] bg-[var(--bg-2)] px-3 py-2.5 hover:border-[var(--accent)] transition-colors" data-testid="pay-phonepe">
+                      <div className="w-8 h-8 rounded-full bg-[#5f259f] grid place-items-center text-[10px] font-bold text-white">Pe</div>
+                      <div className="text-[11px] text-white/90">Pay via PhonePe</div>
+                    </a>
+                    <a href={qr.qr_image} target="_blank" rel="noopener noreferrer"
+                       className="flex flex-col items-center gap-1.5 rounded-xl border border-[var(--border-hi)] bg-[var(--bg-2)] px-3 py-2.5 hover:border-[var(--accent)] transition-colors" data-testid="pay-paytm">
+                      <div className="w-8 h-8 rounded-full bg-[#00baf2] grid place-items-center text-[10px] font-bold text-white">P</div>
+                      <div className="text-[11px] text-white/90">Pay via Paytm</div>
+                    </a>
+                  </div>
+                )}
+
                 <div className="mt-3 text-[11px] text-[var(--muted-2)] leading-relaxed flex gap-2">
                   <ShieldCheck size={14} className="text-[var(--emerald)] mt-0.5 shrink-0"/>
                   <span>Open GPay / PhonePe / Paytm, scan this QR and pay securely via Razorpay. Keep this window open — your challenge activates instantly on success.</span>
