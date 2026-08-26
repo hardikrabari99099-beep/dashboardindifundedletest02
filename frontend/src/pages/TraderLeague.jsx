@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, formatINR, formatApiError } from "../lib/api";
 import { useSEO } from "../lib/useSEO";
+import { openUpiCheckout } from "../lib/razorpay";
 import { toast } from "sonner";
 import { Trophy, ShieldCheck, Loader2, CheckCircle2 } from "lucide-react";
 
@@ -16,17 +17,13 @@ export default function TraderLeague() {
     full_name: "", email: "", phone: "",
     is_existing_trader: false, trader_id: "", notes: "",
   });
-  const [step, setStep] = useState(1); // 1: form, 2: qr, 3: success
+  const [step, setStep] = useState(1); // 1: form, 3: success
   const [loading, setLoading] = useState(false);
-  const [qr, setQr] = useState(null);
-  const pollRef = useRef(null);
 
   useEffect(() => {
     api.get("/league/config").then(r => { setConfig(r.data); setLoaded(true); })
       .catch(() => setLoaded(true));
   }, []);
-
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   const amount = form.is_existing_trader ? config.fee_existing : config.fee_new;
 
@@ -42,21 +39,24 @@ export default function TraderLeague() {
     }
     setLoading(true);
     try {
-      const { data } = await api.post("/league/register", form);
-      setQr(data);
-      setStep(2);
-      pollRef.current = setInterval(async () => {
+      const { data: co } = await api.post("/league/register", form);
+      await openUpiCheckout(co, async (rsp) => {
         try {
-          const { data: st } = await api.get(`/league/status/${data.registration_id}`);
-          if (st.status === "completed") {
-            clearInterval(pollRef.current);
-            setStep(3);
-            toast.success("Registration confirmed!");
-          }
-        } catch {}
-      }, 4000);
+          await api.post("/orders/razorpay/verify", {
+            razorpay_order_id: rsp.razorpay_order_id,
+            razorpay_payment_id: rsp.razorpay_payment_id,
+            razorpay_signature: rsp.razorpay_signature,
+          });
+          setStep(3);
+          toast.success("Registration confirmed!");
+        } catch (err) {
+          toast.error(formatApiError(err.response?.data?.detail) || "Payment could not be verified. Contact support.");
+        }
+      }, () => {
+        toast.message("Payment cancelled");
+      });
     } catch (err) {
-      toast.error(formatApiError(err));
+      toast.error(formatApiError(err.response?.data?.detail));
     } finally {
       setLoading(false);
     }
@@ -147,53 +147,19 @@ export default function TraderLeague() {
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-between border-t border-[var(--border)] pt-6">
+          <div className="mt-6 flex items-center justify-between border-t border-[var(--border)] pt-6 flex-wrap gap-4">
             <div>
               <div className="text-xs uppercase tracking-wider font-mono text-[var(--muted-2)]">Amount to Pay</div>
               <div className="font-display text-3xl text-[var(--accent)] mt-1">{formatINR(amount)}</div>
             </div>
             <button type="submit" disabled={loading}
-                    className="btn-amber rounded-full px-6 py-3 text-sm inline-flex items-center gap-2 disabled:opacity-60"
+                    className="btn-amber rounded-full px-6 py-3.5 text-sm inline-flex items-center gap-2 disabled:opacity-60"
                     data-testid="league-submit">
-              {loading ? <><Loader2 className="animate-spin" size={16}/> Generating QR…</> : "Continue to Payment"}
+              {loading ? <><Loader2 className="animate-spin" size={16}/> Opening UPI…</> : <><ShieldCheck size={16}/> Pay with your UPI app</>}
             </button>
           </div>
+          <p className="text-[11px] text-[var(--muted-2)] mt-4">On mobile, tap the button — your UPI app chooser opens with GPay / PhonePe / Paytm / BHIM etc. On desktop, Razorpay's secure UPI modal opens.</p>
         </form>
-      )}
-
-      {step === 2 && qr && (
-        <div className="mt-10 card-panel p-6 md:p-8 max-w-2xl" data-testid="league-qr">
-          <div className="text-center text-xs uppercase tracking-widest font-mono text-[var(--muted-2)] mb-4">Scan &amp; pay with any UPI app</div>
-          <div className="bg-white rounded-xl p-4 w-fit mx-auto">
-            <img src={qr.qr_image} alt="Razorpay UPI QR" className="w-72 h-72 sm:w-96 sm:h-96 object-contain" data-testid="league-qr-img"/>
-          </div>
-          <div className="bg-[var(--bg-2)] rounded-xl px-5 py-5 text-center mt-4">
-            <div className="text-[10px] uppercase tracking-wider text-[var(--muted-2)] font-mono mb-1">Amount to Pay</div>
-            <div className="font-display text-3xl text-[var(--accent)]">{formatINR(qr.amount)}</div>
-          </div>
-          <div className="mt-4 flex items-center justify-center gap-2 text-[12px] text-[var(--muted)]">
-            <Loader2 className="animate-spin text-[var(--accent)]" size={14}/>
-            <span>Waiting for payment… confirms automatically.</span>
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <a href={qr.qr_image} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1.5 rounded-xl border border-[var(--border-hi)] bg-[var(--bg-2)] px-3 py-2.5 hover:border-[var(--accent)] transition-colors" data-testid="league-pay-gpay">
-              <div className="w-8 h-8 rounded-full bg-white grid place-items-center text-[10px] font-bold text-[#4285F4]">GPay</div>
-              <div className="text-[11px] text-white/90">Pay via GPay</div>
-            </a>
-            <a href={qr.qr_image} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1.5 rounded-xl border border-[var(--border-hi)] bg-[var(--bg-2)] px-3 py-2.5 hover:border-[var(--accent)] transition-colors" data-testid="league-pay-phonepe">
-              <div className="w-8 h-8 rounded-full bg-[#5f259f] grid place-items-center text-[10px] font-bold text-white">Pe</div>
-              <div className="text-[11px] text-white/90">Pay via PhonePe</div>
-            </a>
-            <a href={qr.qr_image} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1.5 rounded-xl border border-[var(--border-hi)] bg-[var(--bg-2)] px-3 py-2.5 hover:border-[var(--accent)] transition-colors" data-testid="league-pay-paytm">
-              <div className="w-8 h-8 rounded-full bg-[#00baf2] grid place-items-center text-[10px] font-bold text-white">P</div>
-              <div className="text-[11px] text-white/90">Pay via Paytm</div>
-            </a>
-          </div>
-          <div className="mt-3 text-[11px] text-[var(--muted-2)] leading-relaxed flex gap-2">
-            <ShieldCheck size={14} className="text-[var(--emerald)] mt-0.5 shrink-0"/>
-            <span>Open GPay / PhonePe / Paytm, scan this QR and pay securely via Razorpay. Keep this window open — your league registration activates instantly on success.</span>
-          </div>
-        </div>
       )}
 
       {step === 3 && (

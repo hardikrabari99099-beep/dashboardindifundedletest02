@@ -8,6 +8,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import ProfitCalculator from "../components/ProfitCalculator";
 import ComparePlans from "../components/ComparePlans";
+import { openUpiCheckout } from "../lib/razorpay";
 import { toast } from "sonner";
 import { CheckCircle2, Rocket, Loader2, ShieldCheck, Sparkles, Tag, Gift } from "lucide-react";
 
@@ -263,22 +264,42 @@ export default function Challenges() {
                 </div>
 
                 {qr?.qr_image && (
-                  <div className="mt-4 grid grid-cols-3 gap-2" data-testid="upi-app-buttons">
-                    <a href={qr.qr_image} target="_blank" rel="noopener noreferrer"
-                       className="flex flex-col items-center gap-1.5 rounded-xl border border-[var(--border-hi)] bg-[var(--bg-2)] px-3 py-2.5 hover:border-[var(--accent)] transition-colors" data-testid="pay-gpay">
-                      <div className="w-8 h-8 rounded-full bg-white grid place-items-center text-[10px] font-bold text-[#4285F4]">GPay</div>
-                      <div className="text-[11px] text-white/90">Pay via GPay</div>
-                    </a>
-                    <a href={qr.qr_image} target="_blank" rel="noopener noreferrer"
-                       className="flex flex-col items-center gap-1.5 rounded-xl border border-[var(--border-hi)] bg-[var(--bg-2)] px-3 py-2.5 hover:border-[var(--accent)] transition-colors" data-testid="pay-phonepe">
-                      <div className="w-8 h-8 rounded-full bg-[#5f259f] grid place-items-center text-[10px] font-bold text-white">Pe</div>
-                      <div className="text-[11px] text-white/90">Pay via PhonePe</div>
-                    </a>
-                    <a href={qr.qr_image} target="_blank" rel="noopener noreferrer"
-                       className="flex flex-col items-center gap-1.5 rounded-xl border border-[var(--border-hi)] bg-[var(--bg-2)] px-3 py-2.5 hover:border-[var(--accent)] transition-colors" data-testid="pay-paytm">
-                      <div className="w-8 h-8 rounded-full bg-[#00baf2] grid place-items-center text-[10px] font-bold text-white">P</div>
-                      <div className="text-[11px] text-white/90">Pay via Paytm</div>
-                    </a>
+                  <div className="mt-4" data-testid="upi-app-buttons">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const { data: co } = await api.post("/orders/razorpay/checkout-order", {
+                            plan_id: buying.id,
+                            customer_name: form.customer_name,
+                            customer_email: form.customer_email,
+                            customer_phone: form.customer_phone,
+                            coupon_code: couponInfo ? form.coupon_code.trim() : null,
+                            referral_code: form.referral_code.trim() || null,
+                          });
+                          await openUpiCheckout(co, async (rsp) => {
+                            try {
+                              await api.post("/orders/razorpay/verify", {
+                                razorpay_order_id: rsp.razorpay_order_id,
+                                razorpay_payment_id: rsp.razorpay_payment_id,
+                                razorpay_signature: rsp.razorpay_signature,
+                              });
+                              clearInterval(pollRef.current);
+                              setStep(3);
+                              toast.success("Payment successful!");
+                            } catch (e) {
+                              toast.error(formatApiError(e.response?.data?.detail) || "Payment could not be verified. Contact support.");
+                            }
+                          });
+                        } catch (e) {
+                          toast.error(formatApiError(e.response?.data?.detail) || "Could not start UPI payment. Please try again.");
+                        }
+                      }}
+                      className="btn-amber w-full rounded-full px-6 py-3.5 text-sm font-semibold inline-flex items-center justify-center gap-2"
+                      data-testid="pay-with-upi">
+                      <ShieldCheck size={16}/> Pay with your UPI app
+                    </button>
+                    <div className="text-[11px] text-[var(--muted-2)] mt-2 text-center">On mobile, this opens the UPI app chooser (GPay / PhonePe / Paytm / BHIM). On desktop, use the QR above.</div>
                   </div>
                 )}
 

@@ -939,6 +939,107 @@ async def razorpay_order_status(order_id: str):
     return {"status": order.get("status"), "paid": False}
 
 
+# ===== Razorpay Standard Checkout (UPI intent with native app chooser) =====
+@api.post("/orders/razorpay/checkout-order")
+async def create_razorpay_checkout_order(body: RazorpayOrderReq):
+    """Create a Razorpay Order (Standard Checkout). Used by frontend Razorpay SDK
+    to launch native UPI intent chooser on mobile (GPay/PhonePe/Paytm/BHIM etc.)."""
+    if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+        raise HTTPException(500, "Razorpay is not configured")
+    plan = await db.plans.find_one({"id": body.plan_id}, {"_id": 0})
+    if not plan:
+        raise HTTPException(404, "Plan not found")
+    base_amount, final_amount, discount_amount, ccode, rcode = await _compute_pricing(
+        plan, body.coupon_code, body.referral_code)
+    amount_paise = int(round(final_amount * 100))
+    if amount_paise < 100:
+        raise HTTPException(400, "Amount too low for online payment")
+    order_id = str(uuid.uuid4())
+    payload = {
+        "amount": amount_paise,
+        "currency": "INR",
+        "receipt": order_id[:40],
+        "notes": {"order_id": order_id, "plan": plan["name"], "kind": "challenge",
+                  "email": body.customer_email},
+    }
+    try:
+        resp = requests.post(f"{RAZORPAY_BASE}/orders", json=payload,
+                             auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET), timeout=20)
+    except requests.RequestException as e:
+        raise HTTPException(502, f"Razorpay request failed: {e}")
+    if resp.status_code not in (200, 201):
+        logging.error("Razorpay checkout order failed: %s %s", resp.status_code, resp.text)
+        raise HTTPException(502, f"Razorpay error: {resp.text[:300]}")
+    rz = resp.json()
+    order = {
+        "id": order_id,
+        "plan_id": plan["id"],
+        "plan_name": plan["name"],
+        "amount": final_amount,
+        "base_amount": base_amount,
+        "discount_amount": discount_amount,
+        "coupon_code": ccode,
+        "referral_code": rcode,
+        "currency": "inr",
+        "payment_method": "razorpay_checkout",
+        "razorpay_order_id": rz.get("id"),
+        "razorpay_payment_id": None,
+        "customer_name": body.customer_name,
+        "customer_email": body.customer_email,
+        "customer_phone": body.customer_phone,
+        "notes": body.notes,
+        "status": "pending_payment",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.orders.insert_one(order)
+    return {
+        "order_id": order_id,
+        "razorpay_order_id": rz.get("id"),
+        "amount": final_amount,
+        "amount_paise": amount_paise,
+        "key_id": RAZORPAY_KEY_ID,
+        "customer": {
+            "name": body.customer_name,
+            "email": body.customer_email,
+            "phone": body.customer_phone,
+        },
+        "description": f"IndiFunded {plan['name']} Challenge",
+    }
+
+
+@api.post("/orders/razorpay/verify")
+async def verify_razorpay_payment(body: dict):
+    """Verify Razorpay Checkout signature and mark our order as completed."""
+    rz_order_id = body.get("razorpay_order_id", "")
+    rz_payment_id = body.get("razorpay_payment_id", "")
+    rz_signature = body.get("razorpay_signature", "")
+    if not (rz_order_id and rz_payment_id and rz_signature):
+        raise HTTPException(400, "Missing payment fields")
+    generated = hmac.new(
+        RAZORPAY_KEY_SECRET.encode("utf-8"),
+        f"{rz_order_id}|{rz_payment_id}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(generated, rz_signature):
+        raise HTTPException(400, "Invalid Razorpay signature")
+    # Try challenge order first, then league registration
+    order = await db.orders.find_one({"razorpay_order_id": rz_order_id})
+    if order:
+        await db.orders.update_one({"id": order["id"]}, {"$set": {
+            "status": "completed",
+            "razorpay_payment_id": rz_payment_id,
+        }})
+        return {"status": "completed", "kind": "order", "id": order["id"]}
+    reg = await db.league_registrations.find_one({"razorpay_order_id": rz_order_id})
+    if reg:
+        await db.league_registrations.update_one({"id": reg["id"]}, {"$set": {
+            "status": "completed",
+            "razorpay_payment_id": rz_payment_id,
+        }})
+        return {"status": "completed", "kind": "league", "id": reg["id"]}
+    raise HTTPException(404, "Order not found")
+
+
 @api.post("/webhooks/razorpay")
 async def razorpay_webhook(request: Request):
     body = await request.body()
@@ -1070,6 +1171,7 @@ class LeagueRegistration(LeagueRegistrationCreate):
     status: str = "pending_payment"   # pending_payment | completed | rejected
     razorpay_qr_id: str = ""
     razorpay_qr_image: str = ""
+    razorpay_order_id: str = ""
     razorpay_payment_id: str = ""
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -1101,6 +1203,8 @@ async def set_league_config(body: dict, user: dict = Depends(get_current_admin))
 
 @api.post("/league/register")
 async def league_register(body: LeagueRegistrationCreate):
+    """Create a Razorpay Standard Checkout Order for the league — used by
+    frontend Razorpay SDK to launch native UPI intent chooser on mobile."""
     if not await _league_enabled():
         raise HTTPException(403, "Trader League registration is currently closed")
     if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
@@ -1111,31 +1215,34 @@ async def league_register(body: LeagueRegistrationCreate):
     reg = LeagueRegistration(**body.model_dump(), amount=amount)
     amount_paise = int(round(amount * 100))
     payload = {
-        "type": "upi_qr",
-        "name": f"IndiFunded League - {reg.full_name[:20]}",
-        "usage": "single_use",
-        "fixed_amount": True,
-        "payment_amount": amount_paise,
-        "description": f"IndiFunded Trader League Registration"[:100],
+        "amount": amount_paise,
+        "currency": "INR",
+        "receipt": reg.id[:40],
         "notes": {"reg_id": reg.id, "email": body.email, "kind": "league"},
     }
     try:
-        resp = requests.post(f"{RAZORPAY_BASE}/payments/qr_codes", json=payload,
+        resp = requests.post(f"{RAZORPAY_BASE}/orders", json=payload,
                              auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET), timeout=20)
     except requests.RequestException as e:
         raise HTTPException(502, f"Razorpay request failed: {e}")
     if resp.status_code not in (200, 201):
-        logging.error("Razorpay league QR failed: %s %s", resp.status_code, resp.text)
+        logging.error("Razorpay league order failed: %s %s", resp.status_code, resp.text)
         raise HTTPException(502, f"Razorpay error: {resp.text[:300]}")
-    qr = resp.json()
-    reg.razorpay_qr_id = qr.get("id", "")
-    reg.razorpay_qr_image = qr.get("image_url", "")
+    rz = resp.json()
+    reg.razorpay_order_id = rz.get("id", "")
     await db.league_registrations.insert_one(reg.model_dump())
     return {
         "registration_id": reg.id,
-        "qr_image": reg.razorpay_qr_image,
-        "qr_id": reg.razorpay_qr_id,
+        "razorpay_order_id": reg.razorpay_order_id,
         "amount": amount,
+        "amount_paise": amount_paise,
+        "key_id": RAZORPAY_KEY_ID,
+        "customer": {
+            "name": body.full_name,
+            "email": body.email,
+            "phone": body.phone,
+        },
+        "description": "IndiFunded Trader League Registration",
     }
 
 @api.get("/league/status/{registration_id}")

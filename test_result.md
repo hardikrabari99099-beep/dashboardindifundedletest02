@@ -161,6 +161,20 @@ backend:
         - working: true
           agent: "testing"
           comment: "✅ TESTED & VERIFIED: All Trader League endpoints working correctly. GET /api/league/config returns {enabled, fee_existing:999, fee_new:1499}. PUT /api/league/config toggles enabled state. POST /api/league/register returns 403 when disabled, 400 when existing trader has empty trader_id, 200 with qr_image+registration_id+amount=999 for existing traders with trader_id, 200 with amount=1499 for new traders. GET /api/league/status/{id} returns status+amount. GET /api/league/registrations (admin) lists all registrations. DELETE /api/league/registrations/{id} works. All flows tested and working."
+  - task: "New Razorpay Standard Checkout endpoints (UPI intent flow) + league now uses Orders API"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added POST /api/orders/razorpay/checkout-order (creates a Razorpay Order for Standard Checkout SDK), POST /api/orders/razorpay/verify (validates HMAC-SHA256 signature and marks order OR league_registration completed). Also modified POST /api/league/register to use Orders API instead of QR API — response now returns razorpay_order_id + key_id + amount_paise + customer instead of qr_image. Old QR endpoint /orders/razorpay/create still works (untouched)."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED & VERIFIED: All new Razorpay Standard Checkout endpoints working correctly. (1) POST /api/orders/razorpay/checkout-order: Returns 200 with order_id, razorpay_order_id (starts 'order_'), amount, amount_paise, key_id (starts 'rzp_live_'), customer{name,email,phone}, description. Invalid plan_id returns 404. (2) POST /api/orders/razorpay/verify: Fake signature returns 400 'Invalid Razorpay signature', empty payload returns 400 'Missing payment fields'. (3) POST /api/league/register: CRITICAL - qr_image field correctly removed (now uses Checkout SDK). New trader returns razorpay_order_id, amount=1499, amount_paise=149900. Existing trader with trader_id returns amount=999, amount_paise=99900. Empty trader_id returns 400. GET /api/league/registrations shows registrations with razorpay_order_id and status='pending_payment'. League disabled returns 403. (4) REGRESSION: Old QR endpoint POST /api/orders/razorpay/create still works and returns qr_image, qr_id, order_id, amount. (5) REGRESSION: Previous bug fixes (weekly-highest-payouts, plan price persistence) still working. All 5 test suites passed with 0 failures."
 
 frontend:
   - task: "UPI app intent buttons (GPay/PhonePe/Paytm) under Razorpay QR on Challenges checkout"
@@ -221,8 +235,8 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.2"
-  test_sequence: 2
+  version: "1.3"
+  test_sequence: 3
   run_ui: false
 
 test_plan:
@@ -234,5 +248,28 @@ test_plan:
 agent_communication:
     - agent: "main"
       message: "Please test the four backend tasks above. Admin auth: POST /api/auth/login {email:'admin@indifunded.com', password:'Admin@12345'} returns a cookie/token used by admin endpoints. For the two bug fixes, please: (1) DELETE the currently-seeded certificate (any one with visible=true) via DELETE /api/certificates/{id}, then simulate a restart by calling the /startup path implicitly — since we cannot restart supervisor from tests, instead re-run the seed logic by verifying: after deletion, GET /api/certificates returns without the deleted item, AND GET /api/certificates returns empty (or fewer) items and stays empty across a second call. If you can, use `sudo supervisorctl restart backend` to test true persistence — the previously deleted certificate must NOT reappear. (2) For plans: PUT /api/plans/{starter_id} with a new challenge_fee like 4499 and original_price 5500, then restart backend and confirm GET /api/plans still returns 4499/5500 for that plan (NOT the old 3999/5000). (3) Weekly highest: hit GET /api/weekly-highest-payouts and verify structure (array with plan, trader_name, amount fields; deduped per plan). (4) League: PUT /api/league/config {enabled:false} then POST /api/league/register should 403; PUT enabled:true then POST with is_existing_trader:false, valid name/email/phone returns qr_image+registration_id+amount=1499; POST with is_existing_trader:true and empty trader_id must 400; POST with is_existing_trader:true and trader_id:'IF-123' returns amount=999. Then GET /api/league/registrations (admin) must include those. GET /api/league/status/{id} should return status string (may be pending_payment since no real payment made — that's fine)."
+    - agent: "main"
+      message: "ROUND 2 — Please test the NEW Razorpay Standard Checkout endpoints (used by the new 'Pay with your UPI app' single-button flow):
+
+1) POST /api/orders/razorpay/checkout-order  (public)
+   Body: {plan_id: <starter id from GET /api/plans>, customer_name:'Test', customer_email:'t@t.com', customer_phone:'9999999999'}
+   Expected 200 with fields: order_id, razorpay_order_id (starts with 'order_'), amount (number, e.g. 3999), amount_paise (int, e.g. 399900), key_id (starts with 'rzp_live_'), customer{name,email,phone}, description.
+
+2) POST /api/orders/razorpay/verify  (public)
+   Send garbage payload {razorpay_order_id:'order_FAKE', razorpay_payment_id:'pay_FAKE', razorpay_signature:'zzz'} — MUST return 400 'Invalid Razorpay signature'.
+   Send an empty payload {} — MUST return 400 'Missing payment fields'.
+
+3) POST /api/league/register  (public, needs league enabled)
+   First PUT /api/league/config {enabled:true} (admin).
+   Then POST /api/league/register {full_name:'Ravi',email:'ravi@t.com',phone:'9999999999',is_existing_trader:false} — expected 200 with razorpay_order_id (starts 'order_'), amount=1499, amount_paise=149900, key_id, customer{name,email,phone}, description. IMPORTANT: response NO LONGER contains qr_image (moved to Razorpay Checkout SDK).
+   Then POST /api/league/register with is_existing_trader:true, trader_id:'IF-9' — amount must be 999, amount_paise=99900.
+   Then GET /api/league/registrations (admin) — the two new registrations must be present with razorpay_order_id set and status='pending_payment'.
+   Cleanup: DELETE any registrations you created. Finally PUT /api/league/config {enabled:false}.
+
+4) REGRESSION — the pre-existing QR endpoint POST /api/orders/razorpay/create should still work and still return qr_image+qr_id+order_id+amount (we did NOT remove it, only added a new endpoint alongside).
+
+    - agent: "testing"
+      message: "✅ ALL NEW RAZORPAY STANDARD CHECKOUT ENDPOINTS TESTED AND PASSING. Comprehensive testing completed for all 5 test scenarios: (1) POST /api/orders/razorpay/checkout-order - valid plan returns all required fields (order_id, razorpay_order_id starting with 'order_', amount, amount_paise, key_id starting with 'rzp_live_', customer object, description), invalid plan returns 404. (2) POST /api/orders/razorpay/verify - fake signature returns 400 'Invalid Razorpay signature', empty payload returns 400 'Missing payment fields'. (3) POST /api/league/register - CRITICAL VERIFICATION: qr_image field correctly removed (now uses Checkout SDK instead), new trader returns razorpay_order_id + amount=1499 + amount_paise=149900, existing trader with trader_id returns amount=999 + amount_paise=99900, empty trader_id returns 400, GET /api/league/registrations shows registrations with razorpay_order_id and status='pending_payment', league disabled returns 403. (4) REGRESSION: Old QR endpoint POST /api/orders/razorpay/create still works and returns qr_image + qr_id + order_id + amount (not removed). (5) REGRESSION: Previous bug fixes verified - GET /api/weekly-highest-payouts returns array, GET /api/plans shows Starter with challenge_fee=3999 and original_price=5000. All backend functionality working as expected. No issues found. Ready for main agent to summarize and finish."
+Report each case PASS/FAIL with the response body for failures."
     - agent: "testing"
       message: "✅ ALL FOUR BACKEND TASKS TESTED AND PASSING. Created comprehensive backend_test.py covering all test scenarios. Test results: (1) Certificate seed bug fix VERIFIED - deleted all certificates, restarted backend, confirmed they don't come back. (2) Plan price persistence bug fix VERIFIED - updated Starter plan prices to 4499/5500, restarted backend, prices persisted correctly. (3) Weekly highest payouts endpoint VERIFIED - returns 200 with correct array structure, handles empty certificates gracefully. (4) Trader League endpoints VERIFIED - all flows working: config GET/PUT, registration with enable/disable toggle, validation (403 when disabled, 400 for missing trader_id), correct pricing (999 for existing, 1499 for new), QR generation with Razorpay URLs, status polling, admin listing, and delete. No issues found. All backend functionality working as expected."
