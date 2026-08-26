@@ -1,0 +1,14 @@
+{
+  "name": "RubiFunded — India's 1st Prop Trading Firm",
+  "short_name": "RubiFunded",
+  "description": "Pass the RubiFunded challenge and get a funded trading account up to ₹5,00,000 with 75% profit split.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060709",
+  "theme_color": "#1a7a4a",
+  "icons": [
+    { "src": "/logo.jpg", "sizes": "192x192", "type": "image/jpeg", "purpose": "any" },
+    { "src": "/logo.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any" },
+    { "src": "/logo.jpg", "sizes": "any",     "type": "image/jpeg", "purpose": "maskable" }
+  ]
+}
