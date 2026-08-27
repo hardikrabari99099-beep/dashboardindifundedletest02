@@ -25,7 +25,8 @@ export default function AdminLayout() {
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
   if (loading) return <div className="container-xl py-24 text-[var(--muted)]">Loading…</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login?next=/admin" replace />;
+  if (user.role !== "admin") return <Navigate to="/app" replace />;
 
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-[240px_1fr] grain">

@@ -219,6 +219,17 @@ backend:
         - working: true
           agent: "testing"
           comment: "✅ TESTED & VERIFIED: Admin user management endpoints working correctly. (1) GET /api/admin/users: With admin token returns array of users with fields id, email, name, phone, role='user', kyc (with submitted_at), created_at. Admin user itself is correctly filtered out (role != 'admin'). Without auth returns 401. With user token returns 401 (admin only). (2) DELETE /api/admin/users/{id}: With admin token returns 200 and deletes user. Verified user is removed from GET /api/admin/users after deletion."
+  - task: "Admin panel 401 fix - /api/auth/me accepts any authenticated user, admin endpoints still gate correctly"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED & VERIFIED: Admin panel 401 fix working correctly. Comprehensive testing with 33 test cases all passed. (1) Admin login and admin endpoints: POST /api/auth/login (admin) returns 200 with token and role='admin'. GET /api/auth/me with admin token returns 200 with role='admin'. GET /api/admin/stats, /api/admin/users, /api/orders, /api/leads, /api/certificates/all all return 200 with admin token. (2) Regular user cannot access admin endpoints: POST /api/auth/signup creates user with role='user'. GET /api/auth/me with user token returns 200 with role='user' (KEY FIX - now accepts any authenticated user, not just admin). GET /api/admin/stats, /api/admin/users, /api/orders, /api/leads all return 401 with user token. PUT /api/plans/{id} and PUT /api/league/config return 401 with user token. (3) User dashboard endpoints work for regular users (regression): GET /api/me/dashboard, /api/me/accounts, /api/me/payouts, /api/me/certificates, /api/me/billing all return 200 with user token. GET /api/me/dashboard with admin token also returns 200 (admin is valid authenticated user). (4) No auth = 401: GET /api/auth/me, /api/admin/stats, /api/me/dashboard all return 401 without auth. (5) Cleanup: DELETE /api/admin/users/{id} with admin token successfully deletes test user. Bug fix confirmed working - /api/auth/me now accepts any authenticated user while admin endpoints still correctly gate on admin role."
 
 frontend:
   - task: "UPI app intent buttons (GPay/PhonePe/Paytm) under Razorpay QR on Challenges checkout"
@@ -279,8 +290,8 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.4"
-  test_sequence: 4
+  version: "1.5"
+  test_sequence: 5
   run_ui: false
 
 test_plan:
@@ -319,3 +330,5 @@ Report each case PASS/FAIL with the response body for failures."
       message: "✅ ALL FOUR BACKEND TASKS TESTED AND PASSING. Created comprehensive backend_test.py covering all test scenarios. Test results: (1) Certificate seed bug fix VERIFIED - deleted all certificates, restarted backend, confirmed they don't come back. (2) Plan price persistence bug fix VERIFIED - updated Starter plan prices to 4499/5500, restarted backend, prices persisted correctly. (3) Weekly highest payouts endpoint VERIFIED - returns 200 with correct array structure, handles empty certificates gracefully. (4) Trader League endpoints VERIFIED - all flows working: config GET/PUT, registration with enable/disable toggle, validation (403 when disabled, 400 for missing trader_id), correct pricing (999 for existing, 1499 for new), QR generation with Razorpay URLs, status polling, admin listing, and delete. No issues found. All backend functionality working as expected."
     - agent: "testing"
       message: "✅ ALL USER AUTHENTICATION + DASHBOARD ENDPOINTS TESTED AND PASSING. Created comprehensive backend_auth_test.py covering all test scenarios requested. Test results: (1) POST /api/auth/signup - All validation working: success returns 200 with id/email/name/phone/role='user'/token/created_at, duplicate email returns 409, missing name returns 400, short password returns 400, invalid email returns 400. (2) POST /api/auth/login - User login returns token with role='user', admin login returns token with role='admin', wrong password returns 401. (3) GET /api/auth/me - User token returns profile without password_hash, no token returns 401, admin token returns admin profile. VERIFIED: Normal user tokens now work (previously required admin role). (4) Dashboard endpoints - GET /api/me/dashboard returns all required fields (user, simulated_capital, funded_accounts_active, funded_accounts_total, net_pnl, total_paid_out, payouts_count, accounts). GET /api/me/accounts, /api/me/payouts, /api/me/certificates, /api/me/billing all return correct structures (empty arrays for fresh user). (5) Profile & KYC - PUT /api/me/profile updates name/phone and persists, empty body returns 400 'Nothing to update'. PUT /api/me/kyc with valid data returns kyc dict with submitted_at + status='submitted', empty body returns 400. (6) Admin user management - GET /api/admin/users returns users array with all fields including kyc, admin user filtered out, no auth returns 401, user token returns 401. DELETE /api/admin/users/{id} deletes user successfully. (7) Regression - GET /api/plans (Starter at ₹3999), GET /api/weekly-highest-payouts (returns array with 3 items), GET /api/league/config (enabled=false, fees correct) all working. Total: 7 test suites, 7 passed, 0 failed. All backend auth and dashboard functionality working as expected. No issues found."
+    - agent: "testing"
+      message: "✅ ADMIN PANEL 401 FIX VERIFIED - ALL 33 TESTS PASSED. Comprehensive testing confirms the bug fix is working correctly. Key findings: (1) GET /api/auth/me now accepts any authenticated user (returns 200 for both admin and regular user tokens) - THIS IS THE KEY FIX that resolves the frontend AdminLayout 401 errors. (2) All admin endpoints (/api/admin/stats, /api/admin/users, /api/orders, /api/leads, /api/certificates/all, PUT /api/plans, PUT /api/league/config) still correctly require admin role and return 401 for regular user tokens. (3) All user dashboard endpoints (/api/me/dashboard, /api/me/accounts, /api/me/payouts, /api/me/certificates, /api/me/billing) work correctly for regular users. (4) Admin can also access user dashboard endpoints (admin is a valid authenticated user). (5) No auth = 401 for all protected endpoints. (6) Cleanup successful. The root cause (frontend AdminLayout letting non-admin users mount, which then called admin-only endpoints) is now properly handled - /api/auth/me accepts any authenticated user for role checking, while admin endpoints still enforce admin-only access. No issues found. All backend functionality working as expected."

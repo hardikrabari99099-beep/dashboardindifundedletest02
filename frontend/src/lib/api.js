@@ -15,6 +15,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Silently clear a stale token when the server rejects it, so subsequent
+// requests don't repeatedly surface the same 401 to the console.
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err?.response?.status === 401) {
+      const isAuthMe = err?.config?.url?.endsWith("/auth/me");
+      if (isAuthMe && typeof window !== "undefined") {
+        try { localStorage.removeItem("if_token"); } catch { /* ignore */ }
+      }
+    }
+    return Promise.reject(err);
+  }
+);
+
 export function formatApiError(detail) {
   if (detail == null) return "Something went wrong.";
   if (typeof detail === "string") return detail;
