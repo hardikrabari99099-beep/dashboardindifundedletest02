@@ -1,7 +1,8 @@
 import { Link, NavLink } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, User, LayoutDashboard } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSettings } from "../context/SettingsContext";
+import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import BrandLogo from "./BrandLogo";
 
@@ -23,10 +24,12 @@ export const Header = () => {
   const [open, setOpen] = useState(false);
   const [leagueEnabled, setLeagueEnabled] = useState(false);
   const { settings } = useSettings();
+  const { user } = useAuth();
   useEffect(() => {
     api.get("/league/config").then(r => setLeagueEnabled(!!r.data?.enabled)).catch(() => {});
   }, []);
   const links = baseLinks.filter(l => l.flag !== "league" || leagueEnabled);
+  const dashHref = user ? (user.role === "admin" ? "/admin" : "/app") : null;
   return (
     <header className="sticky top-0 z-50 glass border-b border-[var(--border)]" data-testid="site-header">
       <div className="container-xl flex items-center justify-between py-2.5 md:py-4">
@@ -43,6 +46,15 @@ export const Header = () => {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-3">
+          {user ? (
+            <Link to={dashHref} className="btn-ghost px-4 py-2.5 rounded-full text-sm inline-flex items-center gap-2" data-testid="header-dashboard">
+              <LayoutDashboard size={14}/> Dashboard
+            </Link>
+          ) : (
+            <Link to="/login" className="btn-ghost px-4 py-2.5 rounded-full text-sm inline-flex items-center gap-2" data-testid="header-signin">
+              <User size={14}/> Sign in
+            </Link>
+          )}
           <Link to="/challenges" className="btn-amber px-5 py-2.5 rounded-full text-sm" data-testid="header-cta-start">{settings.hero?.cta_primary || "Start Challenge"}</Link>
         </div>
         <button className="md:hidden btn-ghost px-3 py-2 rounded-lg" onClick={()=>setOpen(!open)} data-testid="mobile-menu-toggle">
@@ -56,6 +68,11 @@ export const Header = () => {
               <Link key={l.to} to={l.to} onClick={()=>setOpen(false)}
                     className="py-2 text-[var(--muted)]" data-testid={`mnav-${l.label.toLowerCase()}`}>{l.label}</Link>
             ))}
+            {user ? (
+              <Link to={dashHref} onClick={()=>setOpen(false)} className="btn-ghost px-5 py-2.5 rounded-full text-sm text-center mt-2 inline-flex items-center justify-center gap-2"><LayoutDashboard size={14}/> Dashboard</Link>
+            ) : (
+              <Link to="/login" onClick={()=>setOpen(false)} className="btn-ghost px-5 py-2.5 rounded-full text-sm text-center mt-2 inline-flex items-center justify-center gap-2"><User size={14}/> Sign in</Link>
+            )}
             <Link to="/challenges" onClick={()=>setOpen(false)} className="btn-amber px-5 py-2.5 rounded-full text-sm text-center mt-2" data-testid="mobile-cta-start">{settings.hero?.cta_primary || "Start Challenge"}</Link>
           </div>
         </div>

@@ -12,8 +12,14 @@ import CheckoutSuccess from "./pages/CheckoutSuccess";
 import Login from "./pages/Login";
 import PayoutRequest from "./pages/PayoutRequest";
 import TraderLeague from "./pages/TraderLeague";
+import UserDashboardLayout from "./pages/app/UserDashboardLayout";
+import UserDashboard from "./pages/app/UserDashboard";
+import UserAccounts from "./pages/app/UserAccounts";
+import UserPayouts from "./pages/app/UserPayouts";
+import UserCertificates from "./pages/app/UserCertificates";
+import UserSettings from "./pages/app/UserSettings";
 import AdminLayout from "./pages/admin/AdminLayout";
-import { AdminDashboard, AdminPlans, AdminBlogs, AdminLeads, AdminOrders, AdminCertificates, AdminPayoutRequests, AdminCoupons, AdminLeaderboard, AdminReferrals, AdminLeague } from "./pages/admin/AdminPages";
+import { AdminDashboard, AdminPlans, AdminBlogs, AdminLeads, AdminOrders, AdminCertificates, AdminPayoutRequests, AdminCoupons, AdminLeaderboard, AdminReferrals, AdminLeague, AdminUsers } from "./pages/admin/AdminPages";
 import AdminSettings from "./pages/admin/AdminSettings";
 import { AuthProvider } from "./context/AuthContext";
 import { SettingsProvider } from "./context/SettingsContext";
@@ -43,6 +49,13 @@ function App() {
             <Route path="/league" element={<TraderLeague/>}/>
             <Route path="/login" element={<Login/>}/>
           </Route>
+          <Route path="/app" element={<UserDashboardLayout/>}>
+            <Route index element={<UserDashboard/>}/>
+            <Route path="accounts" element={<UserAccounts/>}/>
+            <Route path="payouts" element={<UserPayouts/>}/>
+            <Route path="certificates" element={<UserCertificates/>}/>
+            <Route path="settings" element={<UserSettings/>}/>
+          </Route>
           <Route path="/admin" element={<AdminLayout/>}>
             <Route index element={<AdminDashboard/>}/>
             <Route path="settings" element={<AdminSettings/>}/>
@@ -56,6 +69,7 @@ function App() {
             <Route path="leads" element={<AdminLeads/>}/>
             <Route path="orders" element={<AdminOrders/>}/>
             <Route path="league" element={<AdminLeague/>}/>
+            <Route path="users" element={<AdminUsers/>}/>
           </Route>
         </Routes>
       </BrowserRouter>

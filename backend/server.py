@@ -85,6 +85,26 @@ async def get_current_admin(request: Request) -> dict:
     except jwt.InvalidTokenError:
         raise HTTPException(401, "Invalid token")
 
+async def get_current_user(request: Request) -> dict:
+    """Any authenticated user (role=user or admin)."""
+    token = request.cookies.get("access_token")
+    if not token:
+        h = request.headers.get("Authorization", "")
+        if h.startswith("Bearer "):
+            token = h[7:]
+    if not token:
+        raise HTTPException(401, "Not authenticated")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
+        if not user:
+            raise HTTPException(401, "Not authorized")
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Invalid token")
+
 # ===== Models =====
 class LoginReq(BaseModel):
     email: EmailStr
@@ -253,6 +273,40 @@ class PayoutRequestUpdate(BaseModel):
     admin_note: Optional[str] = None
 
 # ===== Auth =====
+@api.post("/auth/signup")
+async def signup(body: dict, resp: Response):
+    """Create a new user account. Any signup gets role='user'."""
+    email = str(body.get("email", "")).strip().lower()
+    password = str(body.get("password", ""))
+    name = str(body.get("name", "")).strip()
+    phone = str(body.get("phone", "")).strip()
+    if not email or "@" not in email:
+        raise HTTPException(400, "Valid email is required")
+    if len(password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+    if not name:
+        raise HTTPException(400, "Name is required")
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(409, "An account with this email already exists")
+    uid = str(uuid.uuid4())
+    doc = {
+        "id": uid,
+        "email": email,
+        "password_hash": hash_password(password),
+        "name": name,
+        "phone": phone,
+        "role": "user",
+        "kyc": {},
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(doc)
+    token = create_access_token(uid, email)
+    set_auth_cookie(resp, token)
+    return {"id": uid, "email": email, "name": name, "phone": phone,
+            "role": "user", "token": token,
+            "created_at": doc["created_at"]}
+
 @api.post("/auth/login")
 async def login(body: LoginReq, resp: Response):
     email = body.email.lower()
@@ -262,7 +316,9 @@ async def login(body: LoginReq, resp: Response):
     token = create_access_token(user["id"], user["email"])
     set_auth_cookie(resp, token)
     return {"id": user["id"], "email": user["email"], "name": user.get("name", ""),
-            "role": user.get("role", "admin"), "token": token}
+            "phone": user.get("phone", ""),
+            "role": user.get("role", "user"), "token": token,
+            "created_at": user.get("created_at", "")}
 
 @api.post("/auth/logout")
 async def logout(resp: Response):
@@ -270,8 +326,130 @@ async def logout(resp: Response):
     return {"ok": True}
 
 @api.get("/auth/me")
-async def me(user: dict = Depends(get_current_admin)):
+async def me(user: dict = Depends(get_current_user)):
     return user
+
+# ===== User Dashboard (self-service) =====
+@api.get("/me/dashboard")
+async def my_dashboard(user: dict = Depends(get_current_user)):
+    email = user["email"].lower()
+    orders = await db.orders.find({"customer_email": email}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    payouts = await db.payout_requests.find({"email": email}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    completed_orders = [o for o in orders if o.get("status") == "completed"]
+    simulated_capital = sum(int(o.get("plan_account_size", 0)) for o in completed_orders)
+    # Fallback: derive account_size from plan_name if missing
+    if not simulated_capital and completed_orders:
+        plan_map = {p["name"]: p for p in await db.plans.find({}, {"_id": 0}).to_list(50)}
+        for o in completed_orders:
+            pn = o.get("plan_name")
+            if pn and pn in plan_map:
+                simulated_capital += int(plan_map[pn].get("account_size", 0))
+    paid_payouts = [p for p in payouts if p.get("status") == "paid"]
+    return {
+        "user": {"id": user["id"], "email": user["email"], "name": user.get("name", ""),
+                 "phone": user.get("phone", ""), "created_at": user.get("created_at", "")},
+        "simulated_capital": simulated_capital,
+        "funded_accounts_active": len(completed_orders),
+        "funded_accounts_total": len(orders),
+        "net_pnl": 0,  # placeholder — trading feed not integrated yet
+        "total_paid_out": sum(float(p.get("amount", 0)) for p in paid_payouts),
+        "payouts_count": len(paid_payouts),
+        "accounts": completed_orders[:6],
+    }
+
+@api.get("/me/accounts")
+async def my_accounts(user: dict = Depends(get_current_user)):
+    email = user["email"].lower()
+    orders = await db.orders.find({"customer_email": email}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return orders
+
+@api.get("/me/payouts")
+async def my_payouts(user: dict = Depends(get_current_user)):
+    email = user["email"].lower()
+    payouts = await db.payout_requests.find({"email": email}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    paid = [p for p in payouts if p.get("status") == "paid"]
+    pending = [p for p in payouts if p.get("status") in ("pending", "approved")]
+    return {
+        "eligible": 0,  # placeholder — depends on live P&L feed
+        "pending_amount": sum(float(p.get("amount", 0)) for p in pending),
+        "total_paid": sum(float(p.get("amount", 0)) for p in paid),
+        "history": payouts,
+    }
+
+@api.get("/me/certificates")
+async def my_certificates(user: dict = Depends(get_current_user)):
+    email = user["email"].lower()
+    certs = await db.certificates.find({"trader_email": email, "visible": True}, {"_id": 0}).to_list(200)
+    return certs
+
+@api.get("/me/billing")
+async def my_billing(user: dict = Depends(get_current_user)):
+    email = user["email"].lower()
+    orders = await db.orders.find({"customer_email": email}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    league = await db.league_registrations.find({"email": email}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    items = []
+    for o in orders:
+        items.append({
+            "id": o.get("id"),
+            "kind": "challenge",
+            "product": o.get("plan_name", "Challenge"),
+            "amount": o.get("amount", 0),
+            "status": o.get("status", "pending_payment"),
+            "created_at": o.get("created_at", ""),
+        })
+    for r in league:
+        items.append({
+            "id": r.get("id"),
+            "kind": "league",
+            "product": "Trader League" + (" (existing)" if r.get("is_existing_trader") else " (new)"),
+            "amount": r.get("amount", 0),
+            "status": r.get("status", "pending_payment"),
+            "created_at": r.get("created_at", ""),
+        })
+    items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return items
+
+@api.put("/me/profile")
+async def update_my_profile(body: dict, user: dict = Depends(get_current_user)):
+    updates = {}
+    if "name" in body and isinstance(body["name"], str) and body["name"].strip():
+        updates["name"] = body["name"].strip()
+    if "phone" in body and isinstance(body["phone"], str):
+        updates["phone"] = body["phone"].strip()
+    if not updates:
+        raise HTTPException(400, "Nothing to update")
+    await db.users.update_one({"id": user["id"]}, {"$set": updates})
+    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
+    return u
+
+@api.put("/me/kyc")
+async def update_my_kyc(body: dict, user: dict = Depends(get_current_user)):
+    kyc = {
+        "full_name": str(body.get("full_name", "")).strip(),
+        "pan": str(body.get("pan", "")).strip().upper(),
+        "upi_id": str(body.get("upi_id", "")).strip(),
+        "bank_account_number": str(body.get("bank_account_number", "")).strip(),
+        "ifsc": str(body.get("ifsc", "")).strip().upper(),
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "status": "submitted",
+    }
+    if not kyc["full_name"] or not kyc["pan"]:
+        raise HTTPException(400, "Full name and PAN are required")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"kyc": kyc}})
+    return kyc
+
+# ===== Admin — user list =====
+@api.get("/admin/users")
+async def admin_list_users(user: dict = Depends(get_current_admin)):
+    users = await db.users.find({"role": {"$ne": "admin"}}, {"_id": 0, "password_hash": 0}) \
+        .sort("created_at", -1).to_list(1000)
+    return users
+
+@api.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, user: dict = Depends(get_current_admin)):
+    await db.users.delete_one({"id": user_id, "role": {"$ne": "admin"}})
+    return {"ok": True}
+
 
 # ===== Plans =====
 @api.get("/plans", response_model=List[Plan])

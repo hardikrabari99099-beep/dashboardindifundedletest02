@@ -175,6 +175,50 @@ backend:
         - working: true
           agent: "testing"
           comment: "✅ TESTED & VERIFIED: All new Razorpay Standard Checkout endpoints working correctly. (1) POST /api/orders/razorpay/checkout-order: Returns 200 with order_id, razorpay_order_id (starts 'order_'), amount, amount_paise, key_id (starts 'rzp_live_'), customer{name,email,phone}, description. Invalid plan_id returns 404. (2) POST /api/orders/razorpay/verify: Fake signature returns 400 'Invalid Razorpay signature', empty payload returns 400 'Missing payment fields'. (3) POST /api/league/register: CRITICAL - qr_image field correctly removed (now uses Checkout SDK). New trader returns razorpay_order_id, amount=1499, amount_paise=149900. Existing trader with trader_id returns amount=999, amount_paise=99900. Empty trader_id returns 400. GET /api/league/registrations shows registrations with razorpay_order_id and status='pending_payment'. League disabled returns 403. (4) REGRESSION: Old QR endpoint POST /api/orders/razorpay/create still works and returns qr_image, qr_id, order_id, amount. (5) REGRESSION: Previous bug fixes (weekly-highest-payouts, plan price persistence) still working. All 5 test suites passed with 0 failures."
+  - task: "User authentication endpoints (signup, login, /auth/me)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED & VERIFIED: All user auth endpoints working correctly. (1) POST /api/auth/signup: Success case returns 200 with id, email, name, phone, role='user', token, created_at. Duplicate email returns 409. Missing name returns 400. Short password (<6 chars) returns 400. Invalid email returns 400. (2) POST /api/auth/login: User login returns 200 with token and role='user'. Admin login returns 200 with role='admin'. Wrong password returns 401. (3) GET /api/auth/me: With user Bearer token returns user profile without password_hash. With no token returns 401. With admin token returns admin profile. VERIFIED: Normal user tokens now work (previously required admin role)."
+  - task: "User dashboard endpoints (/me/dashboard, /me/accounts, /me/payouts, /me/certificates, /me/billing)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED & VERIFIED: All user dashboard endpoints working correctly. (1) GET /api/me/dashboard: Returns 200 with user{id,email,name,phone,created_at}, simulated_capital, funded_accounts_active, funded_accounts_total, net_pnl, total_paid_out, payouts_count, accounts array. (2) GET /api/me/accounts: Returns array (empty for fresh user). (3) GET /api/me/payouts: Returns {eligible, pending_amount, total_paid, history:[]}. (4) GET /api/me/certificates: Returns array (empty for fresh user). (5) GET /api/me/billing: Returns array aggregating orders + league registrations by email (empty for fresh user)."
+  - task: "User profile and KYC endpoints (PUT /me/profile, PUT /me/kyc)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED & VERIFIED: Profile and KYC endpoints working correctly. (1) PUT /api/me/profile: With valid name and phone returns 200 with updated user object. GET /api/auth/me confirms the update persisted. Empty body returns 400 'Nothing to update'. (2) PUT /api/me/kyc: With valid full_name, pan, upi_id, bank_account_number, ifsc returns 200 with kyc dict containing submitted_at timestamp and status='submitted'. Empty body returns 400 (missing full_name/pan required)."
+  - task: "Admin user management endpoints (GET /admin/users, DELETE /admin/users/{id})"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED & VERIFIED: Admin user management endpoints working correctly. (1) GET /api/admin/users: With admin token returns array of users with fields id, email, name, phone, role='user', kyc (with submitted_at), created_at. Admin user itself is correctly filtered out (role != 'admin'). Without auth returns 401. With user token returns 401 (admin only). (2) DELETE /api/admin/users/{id}: With admin token returns 200 and deletes user. Verified user is removed from GET /api/admin/users after deletion."
 
 frontend:
   - task: "UPI app intent buttons (GPay/PhonePe/Paytm) under Razorpay QR on Challenges checkout"
@@ -235,8 +279,8 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.3"
-  test_sequence: 3
+  version: "1.4"
+  test_sequence: 4
   run_ui: false
 
 test_plan:
@@ -273,3 +317,5 @@ agent_communication:
 Report each case PASS/FAIL with the response body for failures."
     - agent: "testing"
       message: "✅ ALL FOUR BACKEND TASKS TESTED AND PASSING. Created comprehensive backend_test.py covering all test scenarios. Test results: (1) Certificate seed bug fix VERIFIED - deleted all certificates, restarted backend, confirmed they don't come back. (2) Plan price persistence bug fix VERIFIED - updated Starter plan prices to 4499/5500, restarted backend, prices persisted correctly. (3) Weekly highest payouts endpoint VERIFIED - returns 200 with correct array structure, handles empty certificates gracefully. (4) Trader League endpoints VERIFIED - all flows working: config GET/PUT, registration with enable/disable toggle, validation (403 when disabled, 400 for missing trader_id), correct pricing (999 for existing, 1499 for new), QR generation with Razorpay URLs, status polling, admin listing, and delete. No issues found. All backend functionality working as expected."
+    - agent: "testing"
+      message: "✅ ALL USER AUTHENTICATION + DASHBOARD ENDPOINTS TESTED AND PASSING. Created comprehensive backend_auth_test.py covering all test scenarios requested. Test results: (1) POST /api/auth/signup - All validation working: success returns 200 with id/email/name/phone/role='user'/token/created_at, duplicate email returns 409, missing name returns 400, short password returns 400, invalid email returns 400. (2) POST /api/auth/login - User login returns token with role='user', admin login returns token with role='admin', wrong password returns 401. (3) GET /api/auth/me - User token returns profile without password_hash, no token returns 401, admin token returns admin profile. VERIFIED: Normal user tokens now work (previously required admin role). (4) Dashboard endpoints - GET /api/me/dashboard returns all required fields (user, simulated_capital, funded_accounts_active, funded_accounts_total, net_pnl, total_paid_out, payouts_count, accounts). GET /api/me/accounts, /api/me/payouts, /api/me/certificates, /api/me/billing all return correct structures (empty arrays for fresh user). (5) Profile & KYC - PUT /api/me/profile updates name/phone and persists, empty body returns 400 'Nothing to update'. PUT /api/me/kyc with valid data returns kyc dict with submitted_at + status='submitted', empty body returns 400. (6) Admin user management - GET /api/admin/users returns users array with all fields including kyc, admin user filtered out, no auth returns 401, user token returns 401. DELETE /api/admin/users/{id} deletes user successfully. (7) Regression - GET /api/plans (Starter at ₹3999), GET /api/weekly-highest-payouts (returns array with 3 items), GET /api/league/config (enabled=false, fees correct) all working. Total: 7 test suites, 7 passed, 0 failed. All backend auth and dashboard functionality working as expected. No issues found."

@@ -849,3 +849,54 @@ export function AdminLeague() {
     </div>
   );
 }
+
+// ===== Admin Users =====
+export function AdminUsers() {
+  const [rows, setRows] = useState([]);
+  const load = () => api.get("/admin/users").then(r => setRows(r.data || [])).catch(()=>{});
+  useEffect(() => { load(); }, []);
+  const del = async (id) => {
+    if (!window.confirm("Delete this user? Their orders remain but the login is removed.")) return;
+    await api.delete(`/admin/users/${id}`);
+    toast.success("Deleted"); load();
+  };
+  return (
+    <div>
+      <div className="chip mb-3"><Users size={12}/> Users</div>
+      <h1 className="font-display text-4xl">Registered users ({rows.length})</h1>
+      <p className="text-sm text-[var(--muted)] mt-2">Every signup from the trader-facing site appears here with their contact info and KYC status.</p>
+
+      <div className="card-panel overflow-hidden mt-8">
+        <Table>
+          <TableHeader><TableRow className="border-[var(--border)]">
+            <TableHead>User</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Phone</TableHead>
+            <TableHead>KYC</TableHead>
+            <TableHead>Joined</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {rows.map(u => (
+              <TableRow key={u.id} className="border-[var(--border)]" data-testid={`user-row-${u.id}`}>
+                <TableCell><div className="font-medium">{u.name || "—"}</div><div className="text-[10px] text-[var(--muted-2)] font-mono">{u.id.slice(0,8)}</div></TableCell>
+                <TableCell className="font-mono text-xs">{u.email}</TableCell>
+                <TableCell className="font-mono text-xs">{u.phone || "—"}</TableCell>
+                <TableCell>
+                  {u.kyc?.submitted_at
+                    ? <span className="text-xs font-mono uppercase tracking-wider px-2.5 py-1 rounded-full" style={{background:"rgba(41,211,154,0.15)", color:"#29d39a"}}>Submitted</span>
+                    : <span className="text-xs font-mono uppercase tracking-wider px-2.5 py-1 rounded-full" style={{background:"rgba(245,182,56,0.15)", color:"#ffd166"}}>Pending</span>}
+                </TableCell>
+                <TableCell className="text-xs text-[var(--muted)]">{u.created_at ? new Date(u.created_at).toLocaleString() : "—"}</TableCell>
+                <TableCell className="text-right">
+                  <button onClick={()=>del(u.id)} className="btn-ghost px-2 py-1.5 rounded-md text-[var(--rose)] inline-flex"><Trash2 size={14}/></button>
+                </TableCell>
+              </TableRow>
+            ))}
+            {!rows.length && (<TableRow className="border-[var(--border)]"><TableCell colSpan={6} className="text-center text-[var(--muted)] py-8">No users signed up yet.</TableCell></TableRow>)}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
