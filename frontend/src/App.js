@@ -19,7 +19,7 @@ import UserPayouts from "./pages/app/UserPayouts";
 import UserCertificates from "./pages/app/UserCertificates";
 import UserSettings from "./pages/app/UserSettings";
 import AdminLayout from "./pages/admin/AdminLayout";
-import { AdminDashboard, AdminPlans, AdminBlogs, AdminLeads, AdminOrders, AdminCertificates, AdminPayoutRequests, AdminCoupons, AdminLeaderboard, AdminReferrals, AdminLeague, AdminUsers } from "./pages/admin/AdminPages";
+import { AdminDashboard, AdminPlans, AdminBlogs, AdminLeads, AdminOrders, AdminCertificates, AdminPayoutRequests, AdminCoupons, AdminLeaderboard, AdminReferrals, AdminLeague, AdminUsers, AdminWeeklyPayouts } from "./pages/admin/AdminPages";
 import AdminSettings from "./pages/admin/AdminSettings";
 import { AuthProvider } from "./context/AuthContext";
 import { SettingsProvider } from "./context/SettingsContext";
@@ -62,6 +62,7 @@ function App() {
             <Route path="plans" element={<AdminPlans/>}/>
             <Route path="blogs" element={<AdminBlogs/>}/>
             <Route path="certificates" element={<AdminCertificates/>}/>
+            <Route path="weekly-payouts" element={<AdminWeeklyPayouts/>}/>
             <Route path="leaderboard" element={<AdminLeaderboard/>}/>
             <Route path="coupons" element={<AdminCoupons/>}/>
             <Route path="referrals" element={<AdminReferrals/>}/>

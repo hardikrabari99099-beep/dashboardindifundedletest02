@@ -234,6 +234,28 @@ class CertificateCreate(BaseModel):
     order: int = 0
     visible: bool = True
 
+class WeeklyPayout(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    image_url: str
+    trader_name: str = ""
+    amount: float = 0
+    plan: str = ""
+    account_size: int = 0
+    payout_date: str = ""
+    order: int = 0
+    visible: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class WeeklyPayoutCreate(BaseModel):
+    image_url: str
+    trader_name: str = ""
+    amount: float = 0
+    plan: str = ""
+    account_size: int = 0
+    payout_date: str = ""
+    order: int = 0
+    visible: bool = True
+
 class PayoutRequest(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     full_name: str
@@ -1294,7 +1316,22 @@ async def root():
 # ============================================================
 @api.get("/weekly-highest-payouts")
 async def weekly_highest_payouts():
-    """Return the highest payout certificate per plan for the last 7 days."""
+    """Return admin-curated weekly winners (per plan) if any; otherwise fall back
+    to the highest visible certificate per plan for the last 7 days."""
+    # 1) Admin-curated entries (highest priority)
+    curated = await db.weekly_payouts.find(
+        {"visible": True}, {"_id": 0}
+    ).sort([("order", 1), ("amount", -1)]).to_list(50)
+    if curated:
+        # Dedupe by plan (keep highest amount per plan, honor order first)
+        seen = {}
+        for r in curated:
+            key = r.get("plan") or ""
+            if key not in seen:
+                seen[key] = r
+        return list(seen.values())
+
+    # 2) Fallback — auto-derive from certificates (last 7 days)
     since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     pipeline = [
         {"$match": {"visible": True, "created_at": {"$gte": since}}},
@@ -1311,7 +1348,6 @@ async def weekly_highest_payouts():
         {"$sort": {"amount": -1}},
     ]
     rows = await db.certificates.aggregate(pipeline).to_list(50)
-    # Fallback: if none in last 7 days, use all-time highest per plan
     if not rows:
         pipeline2 = [
             {"$match": {"visible": True}},
@@ -1331,6 +1367,29 @@ async def weekly_highest_payouts():
     for r in rows:
         r.pop("_id", None)
     return rows
+
+
+# ===== Admin — Weekly Highest Payouts (curated) =====
+@api.get("/admin/weekly-payouts")
+async def admin_list_weekly_payouts(user: dict = Depends(get_current_admin)):
+    return await db.weekly_payouts.find({}, {"_id": 0}).sort([("order", 1), ("created_at", -1)]).to_list(500)
+
+@api.post("/admin/weekly-payouts")
+async def admin_create_weekly_payout(body: WeeklyPayoutCreate, user: dict = Depends(get_current_admin)):
+    wp = WeeklyPayout(**body.model_dump())
+    await db.weekly_payouts.insert_one(wp.model_dump())
+    return wp.model_dump()
+
+@api.put("/admin/weekly-payouts/{wp_id}")
+async def admin_update_weekly_payout(wp_id: str, body: WeeklyPayoutCreate, user: dict = Depends(get_current_admin)):
+    await db.weekly_payouts.update_one({"id": wp_id}, {"$set": body.model_dump()})
+    return await db.weekly_payouts.find_one({"id": wp_id}, {"_id": 0})
+
+@api.delete("/admin/weekly-payouts/{wp_id}")
+async def admin_delete_weekly_payout(wp_id: str, user: dict = Depends(get_current_admin)):
+    await db.weekly_payouts.delete_one({"id": wp_id})
+    return {"ok": True}
+
 
 # ============================================================
 # TRADER LEAGUE — registration + admin toggle + Razorpay

@@ -10,6 +10,7 @@ const links = [
   { to: "/admin/plans", label: "Plans", icon: <Package size={16}/>},
   { to: "/admin/blogs", label: "Blogs", icon: <FileText size={16}/>},
   { to: "/admin/certificates", label: "Certificates", icon: <Award size={16}/>},
+  { to: "/admin/weekly-payouts", label: "Weekly Highest", icon: <Trophy size={16}/>},
   { to: "/admin/leaderboard", label: "Leaderboard", icon: <Trophy size={16}/>},
   { to: "/admin/coupons", label: "Coupons", icon: <Tag size={16}/>},
   { to: "/admin/referrals", label: "Referrals", icon: <Gift size={16}/>},

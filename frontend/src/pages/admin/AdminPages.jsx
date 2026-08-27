@@ -900,3 +900,109 @@ export function AdminUsers() {
     </div>
   );
 }
+
+// ===== Admin Weekly Highest Payouts (curated) =====
+const emptyWP = { image_url:"", trader_name:"", amount:0, plan:"", account_size:0, payout_date:"", order:0, visible:true };
+
+export function AdminWeeklyPayouts() {
+  const [rows, setRows] = useState([]);
+  const [editing, setEditing] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const load = () => api.get("/admin/weekly-payouts").then(r => setRows(r.data || []));
+  useEffect(()=>{ load(); },[]);
+  const save = async () => {
+    try {
+      if (!editing.image_url) { toast.error("Please upload or paste an image URL"); return; }
+      if (editing.id) await api.put(`/admin/weekly-payouts/${editing.id}`, editing);
+      else await api.post("/admin/weekly-payouts", editing);
+      toast.success("Saved"); setEditing(null); load();
+    } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
+  };
+  const del = async (id) => { if(!window.confirm("Delete this weekly payout entry?")) return; await api.delete(`/admin/weekly-payouts/${id}`); toast.success("Deleted"); load(); };
+  const onFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Please choose an image file"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Image too large (max 5MB)"); return; }
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => { setEditing(prev => ({ ...prev, image_url: reader.result })); setUploading(false); toast.success("Image loaded"); };
+    reader.onerror = () => { setUploading(false); toast.error("Failed to read file"); };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+        <div>
+          <div className="chip mb-3"><Trophy size={12}/> Weekly Highest Payout</div>
+          <h1 className="font-display text-4xl">Weekly Highest Payouts</h1>
+          <p className="text-sm text-[var(--muted)] mt-2 max-w-2xl">Curated winners shown on the home page — one card per plan (Starter / Standard / Pro). Entries listed here override the auto-derived list from certificates.</p>
+        </div>
+        <button onClick={()=>setEditing({...emptyWP})} className="btn-amber rounded-full px-5 py-2.5 text-sm inline-flex items-center gap-2" data-testid="wp-new-btn"><Plus size={16}/> New Weekly Payout</button>
+      </div>
+      <div className="card-panel overflow-hidden mt-6">
+        <Table>
+          <TableHeader><TableRow className="border-[var(--border)]">
+            <TableHead>Image</TableHead><TableHead>Trader</TableHead><TableHead>Plan</TableHead><TableHead>Amount</TableHead><TableHead>Date</TableHead><TableHead>Order</TableHead><TableHead>Visible</TableHead><TableHead className="text-right">Actions</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {rows.map(c=>(
+              <TableRow key={c.id} className="border-[var(--border)]" data-testid={`wp-row-${c.id}`}>
+                <TableCell><img src={c.image_url} alt="" className="w-16 h-16 object-cover rounded-md border border-[var(--border)]"/></TableCell>
+                <TableCell className="font-display">{c.trader_name || "—"}</TableCell>
+                <TableCell>{c.plan || "—"}</TableCell>
+                <TableCell className="text-[var(--accent)] font-mono">{c.amount ? formatINR(c.amount) : "—"}</TableCell>
+                <TableCell className="text-xs text-[var(--muted)]">{c.payout_date || "—"}</TableCell>
+                <TableCell className="font-mono">{c.order}</TableCell>
+                <TableCell>{c.visible ? "✓" : "—"}</TableCell>
+                <TableCell className="text-right">
+                  <button onClick={()=>setEditing(c)} className="btn-ghost px-3 py-1.5 rounded-md mr-2" data-testid={`wp-edit-${c.id}`}><Pencil size={14}/></button>
+                  <button onClick={()=>del(c.id)} className="btn-ghost px-3 py-1.5 rounded-md text-[var(--rose)]" data-testid={`wp-delete-${c.id}`}><Trash2 size={14}/></button>
+                </TableCell>
+              </TableRow>
+            ))}
+            {!rows.length && (<TableRow className="border-[var(--border)]"><TableCell colSpan={8} className="text-center text-[var(--muted)] py-8">No curated weekly payouts yet — the home page currently auto-picks winners from Certificates. Add entries here to override.</TableCell></TableRow>)}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog open={!!editing} onOpenChange={(o)=>!o && setEditing(null)}>
+        <DialogContent className="bg-[var(--bg-2)] border-[var(--border)] text-white max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="font-display text-2xl">{editing?.id ? "Edit Weekly Payout" : "New Weekly Payout"}</DialogTitle></DialogHeader>
+          {editing && (
+            <div className="space-y-4">
+              <div>
+                <Label>Award / Certificate Image</Label>
+                <div className="mt-2 flex items-center gap-3">
+                  <label className="btn-amber rounded-full px-4 py-2 text-sm inline-flex items-center gap-2 cursor-pointer" data-testid="wp-upload-btn">
+                    <Upload size={14}/> {uploading ? "Loading…" : "Upload from device"}
+                    <input type="file" accept="image/*" onChange={onFile} className="hidden"/>
+                  </label>
+                  {editing.image_url && (
+                    <button type="button" onClick={()=>setEditing({...editing, image_url:""})} className="btn-ghost rounded-full px-3 py-2 text-xs text-[var(--rose)]">Clear</button>
+                  )}
+                </div>
+                <div className="mt-3">
+                  <Label className="text-xs text-[var(--muted-2)]">…or paste an image URL</Label>
+                  <Input value={editing.image_url?.startsWith("data:") ? "" : editing.image_url} onChange={e=>setEditing({...editing, image_url:e.target.value})} className="bg-[var(--bg-1)] border-[var(--border-hi)] mt-2" placeholder="https://…"/>
+                </div>
+              </div>
+              {editing.image_url && <img src={editing.image_url} alt="" className="w-full max-h-64 object-contain rounded-md border border-[var(--border)]"/>}
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Trader Name</Label><Input value={editing.trader_name} onChange={e=>setEditing({...editing, trader_name:e.target.value})} className="bg-[var(--bg-1)] border-[var(--border-hi)] mt-2"/></div>
+                <div><Label>Plan (Starter/Standard/Pro)</Label><Input value={editing.plan} onChange={e=>setEditing({...editing, plan:e.target.value})} className="bg-[var(--bg-1)] border-[var(--border-hi)] mt-2"/></div>
+                <div><Label>Payout Amount (₹)</Label><Input type="number" step="0.01" value={editing.amount} onChange={e=>setEditing({...editing, amount:+e.target.value})} className="bg-[var(--bg-1)] border-[var(--border-hi)] mt-2"/></div>
+                <div><Label>Account Size (₹)</Label><Input type="number" value={editing.account_size} onChange={e=>setEditing({...editing, account_size:+e.target.value})} className="bg-[var(--bg-1)] border-[var(--border-hi)] mt-2"/></div>
+                <div><Label>Payout Date (DD/MM/YYYY)</Label><Input value={editing.payout_date} onChange={e=>setEditing({...editing, payout_date:e.target.value})} className="bg-[var(--bg-1)] border-[var(--border-hi)] mt-2"/></div>
+                <div><Label>Order (lower = first)</Label><Input type="number" value={editing.order} onChange={e=>setEditing({...editing, order:+e.target.value})} className="bg-[var(--bg-1)] border-[var(--border-hi)] mt-2"/></div>
+              </div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.visible} onChange={e=>setEditing({...editing, visible:e.target.checked})}/> Visible on home page</label>
+            </div>
+          )}
+          <DialogFooter><button onClick={save} className="btn-amber rounded-full px-6 py-2.5 text-sm" data-testid="wp-save-btn">Save</button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
