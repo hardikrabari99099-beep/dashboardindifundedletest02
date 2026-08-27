@@ -55,7 +55,7 @@ export const Header = () => {
               <User size={14}/> Sign in
             </Link>
           )}
-          <Link to="/challenges" className="btn-amber px-5 py-2.5 rounded-full text-sm" data-testid="header-cta-start">{settings.hero?.cta_primary || "Start Challenge"}</Link>
+          <Link to={user ? "/challenges" : "/login?next=/challenges"} className="btn-amber px-5 py-2.5 rounded-full text-sm" data-testid="header-cta-start">{settings.hero?.cta_primary || "Start Challenge"}</Link>
         </div>
         <button className="md:hidden btn-ghost px-3 py-2 rounded-lg" onClick={()=>setOpen(!open)} data-testid="mobile-menu-toggle">
           {open ? <X size={18}/> : <Menu size={18}/>}

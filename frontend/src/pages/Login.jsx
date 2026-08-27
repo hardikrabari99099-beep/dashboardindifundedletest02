@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import { Link, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { formatApiError } from "../lib/api";
+import { formatApiError, api } from "../lib/api";
 import { useSEO } from "../lib/useSEO";
 import { Loader2, LockKeyhole, UserPlus } from "lucide-react";
 
@@ -29,18 +29,22 @@ export default function Login() {
     e.preventDefault();
     setBusy(true);
     try {
-      let res;
       if (mode === "signup") {
         if (!form.name.trim()) { toast.error("Please enter your name"); setBusy(false); return; }
         if (form.password.length < 6) { toast.error("Password must be at least 6 characters"); setBusy(false); return; }
-        res = await signup(form);
-        toast.success("Welcome to IndiFunded!");
+        // Create account WITHOUT auto-login — user must sign in explicitly
+        const { data } = await api.post("/auth/signup", form);
+        toast.success(`Account created successfully! Please sign in with ${data.email} to continue.`, { duration: 6000, position: "bottom-center" });
+        setMode("login");
+        setForm(prev => ({ ...prev, password: "", name: "", phone: "" }));
       } else {
-        res = await login(form.email, form.password);
+        const res = await login(form.email, form.password);
         toast.success(`Welcome back${res?.name ? ", " + res.name.split(" ")[0] : ""}`);
+        // Honor a ?next=/some/path redirect
+        const nextParam = new URLSearchParams(loc.search).get("next");
+        const target = res?.role === "admin" ? "/admin" : (nextParam || "/app");
+        nav(target);
       }
-      const target = res?.role === "admin" ? "/admin" : "/app";
-      nav(target);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail) || (mode === "signup" ? "Sign up failed" : "Login failed"));
     } finally { setBusy(false); }

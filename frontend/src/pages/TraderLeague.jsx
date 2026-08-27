@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { api, formatINR, formatApiError } from "../lib/api";
 import { useSEO } from "../lib/useSEO";
 import { openUpiCheckout } from "../lib/razorpay";
+import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import { Trophy, ShieldCheck, Loader2, CheckCircle2 } from "lucide-react";
 
 export default function TraderLeague() {
@@ -11,10 +13,12 @@ export default function TraderLeague() {
     description: "Join the IndiFunded Trader League. ₹999 for existing IndiFunded traders (with Trader ID), ₹1499 for new traders. Direct Razorpay UPI payment.",
     path: "/league",
   });
+  const { user } = useAuth();
+  const nav = useNavigate();
   const [config, setConfig] = useState({ enabled: true, fee_existing: 999, fee_new: 1499 });
   const [loaded, setLoaded] = useState(false);
   const [form, setForm] = useState({
-    full_name: "", email: "", phone: "",
+    full_name: user?.name || "", email: user?.email || "", phone: user?.phone || "",
     is_existing_trader: false, trader_id: "", notes: "",
   });
   const [step, setStep] = useState(1); // 1: form, 3: success
@@ -25,10 +29,19 @@ export default function TraderLeague() {
       .catch(() => setLoaded(true));
   }, []);
 
+  useEffect(() => {
+    if (user) setForm(f => ({ ...f, full_name: f.full_name || user.name || "", email: f.email || user.email || "", phone: f.phone || user.phone || "" }));
+  }, [user]);
+
   const amount = form.is_existing_trader ? config.fee_existing : config.fee_new;
 
   const startPayment = async (e) => {
     e.preventDefault();
+    if (!user) {
+      toast.error("Please sign in to register for the Trader League", { position: "bottom-center", duration: 4500 });
+      nav("/login?next=/league");
+      return;
+    }
     if (!form.full_name || !form.email || !form.phone) {
       toast.error("Please fill your name, email and phone");
       return;

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { api, formatINR, formatApiError } from "../lib/api";
 import { useSEO } from "../lib/useSEO";
 import { useReveal } from "../lib/useReveal";
+import { useAuth } from "../context/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -52,12 +53,26 @@ export default function Challenges() {
 
   useEffect(() => { api.get("/plans").then(r => setPlans(r.data)).catch(() => {}); }, []);
 
+  const { user } = useAuth();
+  const nav = useNavigate();
+
   const openBuy = (p) => {
+    if (!user) {
+      toast.error("Please sign in to buy a challenge account", { position: "bottom-center", duration: 4500 });
+      nav("/login?next=/challenges");
+      return;
+    }
     setBuying(p);
     setStep(1);
     setCouponInfo(null);
     setQr(null);
-    setForm(prev => ({ customer_name: "", customer_email: "", customer_phone: "", coupon_code: "", referral_code: prev.referral_code || "" }));
+    setForm(prev => ({
+      customer_name: user.name || "",
+      customer_email: user.email || "",
+      customer_phone: user.phone || "",
+      coupon_code: "",
+      referral_code: prev.referral_code || "",
+    }));
   };
 
   const applyCoupon = async () => {

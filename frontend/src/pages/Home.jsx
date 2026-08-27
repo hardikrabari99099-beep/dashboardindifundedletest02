@@ -4,6 +4,7 @@ import { api, formatINR } from "../lib/api";
 import { useSEO } from "../lib/useSEO";
 import { useReveal } from "../lib/useReveal";
 import { useSettings } from "../context/SettingsContext";
+import { useAuth } from "../context/AuthContext";
 import PayoutCertificates from "../components/PayoutCertificates";
 import HowItWorks from "../components/HowItWorks";
 import LivePayoutCounter from "../components/LivePayoutCounter";
@@ -17,6 +18,8 @@ export default function Home() {
   const [plans, setPlans] = useState([]);
   const [blogs, setBlogs] = useState([]);
   const { settings } = useSettings();
+  const { user } = useAuth();
+  const challengesHref = user ? "/challenges" : "/login?next=/challenges";
   const h = settings.hero, st = settings.steps, tests = settings.testimonials || [];
   useReveal([plans, blogs]);
   useSEO({
@@ -52,7 +55,7 @@ export default function Home() {
             {h.subtitle}
           </p>
           <div className="mt-6 md:mt-8 flex flex-wrap gap-3 reveal-up" style={{animationDelay:"240ms"}}>
-            <Link to="/challenges" className="btn-amber px-6 md:px-7 py-3 md:py-3.5 rounded-full inline-flex items-center gap-2 text-sm md:text-base" data-testid="hero-cta-primary">
+            <Link to={challengesHref} className="btn-amber px-6 md:px-7 py-3 md:py-3.5 rounded-full inline-flex items-center gap-2 text-sm md:text-base" data-testid="hero-cta-primary">
               {h.cta_primary} <ArrowRight size={16}/>
             </Link>
             <Link to="/rules" className="btn-ghost px-6 md:px-7 py-3 md:py-3.5 rounded-full inline-flex items-center gap-2 text-sm md:text-base" data-testid="hero-cta-secondary">{h.cta_secondary}</Link>
@@ -152,7 +155,7 @@ export default function Home() {
                     )}
                   </div>
                 </div>
-                <Link to={`/challenges`} className="btn-amber rounded-full px-5 py-2.5 text-sm" data-testid={`home-plan-cta-${i}`}>Buy Now</Link>
+                <Link to={challengesHref} className="btn-amber rounded-full px-5 py-2.5 text-sm" data-testid={`home-plan-cta-${i}`}>Buy Now</Link>
               </div>
             </div>
           ))}
@@ -217,7 +220,7 @@ export default function Home() {
             <h3 className="font-display text-3xl md:text-4xl max-w-xl">Stop risking your own capital. Trade ours.</h3>
             <p className="text-[var(--muted)] mt-3 max-w-xl">One challenge. Funded in 24h after verification. 70% profits to you.</p>
           </div>
-          <Link to="/challenges" className="btn-amber rounded-full px-7 py-3.5 inline-flex items-center gap-2 whitespace-nowrap">Start Your Challenge <ArrowRight size={16}/></Link>
+          <Link to={challengesHref} className="btn-amber rounded-full px-7 py-3.5 inline-flex items-center gap-2 whitespace-nowrap">Start Your Challenge <ArrowRight size={16}/></Link>
         </div>
       </section>
     </div>
