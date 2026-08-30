@@ -11,7 +11,7 @@ import requests
 import json
 import sys
 
-BASE_URL = "https://hardik-web.preview.emergentagent.com/api"
+BASE_URL = "https://go-live-check-14.preview.emergentagent.com/api"
 
 # Test results tracking
 passed = 0

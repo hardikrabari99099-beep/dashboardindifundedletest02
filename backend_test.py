@@ -15,7 +15,7 @@ import subprocess
 from typing import Dict, Any, Optional
 
 # Backend URL from frontend/.env
-BASE_URL = "https://hardik-web.preview.emergentagent.com/api"
+BASE_URL = "https://go-live-check-14.preview.emergentagent.com/api"
 
 # Admin credentials
 ADMIN_EMAIL = "admin@indifunded.com"

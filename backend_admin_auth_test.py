@@ -11,7 +11,7 @@ import json
 import sys
 
 # Backend URL
-BASE_URL = "https://hardik-web.preview.emergentagent.com/api"
+BASE_URL = "https://go-live-check-14.preview.emergentagent.com/api"
 
 # Test credentials
 ADMIN_EMAIL = "admin@indifunded.com"

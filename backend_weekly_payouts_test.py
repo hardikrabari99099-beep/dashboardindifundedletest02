@@ -5,7 +5,7 @@ Test Admin Weekly Highest Payouts CRUD + public endpoint override behavior
 import requests
 import json
 
-BASE_URL = "https://hardik-web.preview.emergentagent.com/api"
+BASE_URL = "https://go-live-check-14.preview.emergentagent.com/api"
 
 # Test data
 ADMIN_EMAIL = "admin@indifunded.com"
