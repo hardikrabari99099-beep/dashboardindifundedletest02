@@ -34,8 +34,8 @@ export default function Challenges() {
   }, [searchParams]);
 
   useSEO({
-    title: "Challenge Plans — Starter, Standard & Pro Funded Accounts",
-    description: "Choose your IndiFunded challenge plan. Account sizes ₹1L, ₹2L, ₹5L. Challenge fees from ₹4,999. 70% profit split, 24-hour payouts. Pay via UPI.",
+    title: "Challenge Plans — Starter to Master Funded Accounts",
+    description: "Choose your IndiFunded challenge plan. Account sizes ₹1L to ₹7L. Challenge fees from ₹4,999. 70% profit split, 24-hour payouts. Pay via UPI.",
     path: "/challenges",
     jsonLd: {
       "@context": "https://schema.org",

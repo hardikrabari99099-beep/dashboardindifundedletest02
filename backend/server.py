@@ -1836,11 +1836,9 @@ async def startup():
         ]
         await db.coupons.insert_many(default_coupons)
 
-    # ---- Migration: ensure original_price is set on the 3 default plans (only if missing) ----
+    # ---- Migration: ensure Pro has its strike-through price (only if missing) ----
     plan_price_map = {
-        "Starter":  {"challenge_fee": 3999.0,  "original_price": 5000.0},
-        "Standard": {"challenge_fee": 7999.0,  "original_price": 9999.0},
-        "Pro":      {"challenge_fee": 14999.0, "original_price": 18999.0},
+        "Pro": {"original_price": 18999.0},
     }
     for pname, prices in plan_price_map.items():
         # Only set if the plan document doesn't have original_price yet — never overwrite admin edits.
@@ -1869,24 +1867,36 @@ async def startup():
     # Seed default plans
     if await db.plans.count_documents({}) == 0:
         default_plans = [
-            Plan(name="Starter", account_size=100000, challenge_fee=3999.0,
-                 profit_target_points=750, profit_share=70, max_loss_limit=20,
-                 min_trading_days=8, total_trading_days=15, trades_per_day=3,
-                 description="Perfect launchpad for aspiring traders. Prove your skills with ₹1L account.",
-                 features=["Account Size ₹1,00,000","70% Profit Split","15 Trading Days","Trade Nifty/BankNifty"],
+            Plan(name="Starter", account_size=100000, challenge_fee=4999.0,
+                 profit_target_points=550, profit_share=70, max_loss_limit=20,
+                 min_trading_days=8, total_trading_days=10, trades_per_day=3,
+                 description="Perfect for beginners ready to prove their trading skills and take the first step toward funded capital.",
+                 features=["₹1,00,000 Funded Account","70% Profit Split","Nifty & BankNifty Trading","No segment restriction","Zerodha, Dhan & Angel One","No hidden rules"],
                  order=1),
             Plan(name="Standard", account_size=200000, challenge_fee=7999.0,
+                 profit_target_points=650, profit_share=70, max_loss_limit=20,
+                 min_trading_days=10, total_trading_days=12, trades_per_day=3,
+                 description="Built for disciplined traders looking to turn consistent strategies into real funded opportunities.",
+                 features=["₹2,00,000 Funded Account","70% Profit Split","No segment restriction","Scale Up to ₹5,00,000","Zerodha, Dhan & Angel One","No hidden rules"],
+                 order=2),
+            Plan(name="Pro", account_size=300000, challenge_fee=14999.0, original_price=18999.0,
                  profit_target_points=750, profit_share=70, max_loss_limit=20,
+                 min_trading_days=10, total_trading_days=12, trades_per_day=3,
+                 description="Designed for serious traders seeking bigger capital, higher profit potential, and greater flexibility.",
+                 features=["Account Size ₹3,00,000","70% Profit Split","Scale Up to ₹5,00,000","No segment restriction","15 Trading Days","No hidden rules"],
+                 popular=True, order=3),
+            Plan(name="Elite", account_size=500000, challenge_fee=14999.0,
+                 profit_target_points=900, profit_share=70, max_loss_limit=20,
                  min_trading_days=10, total_trading_days=15, trades_per_day=3,
                  description="Our most popular plan. Ideal for disciplined traders ready to scale.",
-                 features=["Account Size ₹2,00,000","70% Profit Split","Fund scales to ₹5L","Zerodha/Dhan/Angel One"],
-                 popular=True, order=2),
-            Plan(name="Pro", account_size=500000, challenge_fee=14999.0,
-                 profit_target_points=1250, profit_share=70, max_loss_limit=20,
-                 min_trading_days=12, total_trading_days=20, trades_per_day=5,
+                 features=["Account Size ₹5,00,000","70% Profit Split","No segment restriction","Fund scales to ₹7L","Zerodha/Dhan/Angel One","No hidden rules"],
+                 order=4),
+            Plan(name="Master", account_size=700000, challenge_fee=19999.0,
+                 profit_target_points=1000, profit_share=70, max_loss_limit=20,
+                 min_trading_days=12, total_trading_days=15, trades_per_day=4,
                  description="Built for pros. Maximum capital, top profit share, full market access.",
-                 features=["Account Size ₹5,00,000","70% Profit Split","No segment restriction","24hr Payouts"],
-                 order=3),
+                 features=["Account Size ₹7,00,000","70% Profit Split","No segment restriction","24hr Payouts","No hidden rules"],
+                 order=5),
         ]
         for p in default_plans:
             await db.plans.insert_one(p.model_dump())
