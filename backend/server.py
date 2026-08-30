@@ -297,7 +297,8 @@ class PayoutRequestUpdate(BaseModel):
 # ===== Auth =====
 @api.post("/auth/signup")
 async def signup(body: dict, resp: Response):
-    """Create a new user account. Any signup gets role='user'."""
+    """Create a new user account. Any signup gets role='user' and gets auto-generated APK
+    trading-app credentials (username = email, password = FIRSTNAME@1234)."""
     email = str(body.get("email", "")).strip().lower()
     password = str(body.get("password", ""))
     name = str(body.get("name", "")).strip()
@@ -311,6 +312,8 @@ async def signup(body: dict, resp: Response):
     existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(409, "An account with this email already exists")
+    first = (name.split()[0] if name.strip() else "TRADER").upper()
+    apk_password = f"{first}@1234"
     uid = str(uuid.uuid4())
     doc = {
         "id": uid,
@@ -319,6 +322,8 @@ async def signup(body: dict, resp: Response):
         "name": name,
         "phone": phone,
         "role": "user",
+        "apk_username": email,
+        "apk_password": apk_password,
         "kyc": {},
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -327,6 +332,7 @@ async def signup(body: dict, resp: Response):
     set_auth_cookie(resp, token)
     return {"id": uid, "email": email, "name": name, "phone": phone,
             "role": "user", "token": token,
+            "apk_username": email, "apk_password": apk_password,
             "created_at": doc["created_at"]}
 
 @api.post("/auth/login")
@@ -1800,6 +1806,35 @@ async def startup():
             {"email": ADMIN_EMAIL.lower()},
             {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}},
         )
+
+    # ---- Backfill APK credentials on existing users (idempotent) ----
+    async for u in db.users.find({"role": {"$ne": "admin"}, "apk_username": {"$exists": False}}):
+        first = (u.get("name", "").split()[0] if u.get("name") else "TRADER").upper() or "TRADER"
+        await db.users.update_one(
+            {"id": u["id"]},
+            {"$set": {"apk_username": u["email"], "apk_password": f"{first}@1234"}},
+        )
+
+    # ---- Seed some default coupons if none exist (safe to remove from admin later) ----
+    if await db.coupons.count_documents({}) == 0:
+        default_coupons = [
+            {"id": str(uuid.uuid4()), "code": "WELCOME10",
+             "discount_percent": 10, "active": True,
+             "description": "10% off — welcome to IndiFunded",
+             "max_uses": None, "used_count": 0, "expires_at": None,
+             "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": str(uuid.uuid4()), "code": "LAUNCH20",
+             "discount_percent": 20, "active": True,
+             "description": "20% launch discount",
+             "max_uses": 500, "used_count": 0, "expires_at": None,
+             "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": str(uuid.uuid4()), "code": "TRADER5",
+             "discount_percent": 5, "active": True,
+             "description": "5% off for community traders",
+             "max_uses": None, "used_count": 0, "expires_at": None,
+             "created_at": datetime.now(timezone.utc).isoformat()},
+        ]
+        await db.coupons.insert_many(default_coupons)
 
     # ---- Migration: ensure original_price is set on the 3 default plans (only if missing) ----
     plan_price_map = {

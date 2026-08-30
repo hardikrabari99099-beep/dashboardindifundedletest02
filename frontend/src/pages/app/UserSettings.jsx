@@ -98,7 +98,21 @@ export default function UserSettings() {
             {user?.created_at && <div className="text-xs text-[var(--muted)]"><span className="text-[var(--muted-2)] font-mono">Member since:</span> {new Date(user.created_at).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })}</div>}
           </div>
         </div>
-        <div className="card-panel p-6 flex flex-col">
+        <div className="card-panel p-6" data-testid="apk-credentials-card">
+          <h3 className="font-display text-lg">Trading App (APK) credentials</h3>
+          <p className="text-xs text-[var(--muted)] mt-1">Use these to log in to the IndiFunded trading app once your account is funded.</p>
+          <div className="mt-4 space-y-3 text-sm">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--muted-2)] font-mono">Username</div>
+              <div className="font-mono select-all mt-1 break-all">{user?.apk_username || user?.email}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--muted-2)] font-mono">Password</div>
+              <div className="font-mono select-all mt-1">{user?.apk_password || "—"}</div>
+            </div>
+          </div>
+        </div>
+        <div className="card-panel p-6 flex flex-col md:col-span-2">
           <h3 className="font-display text-lg">Support</h3>
           <p className="text-xs text-[var(--muted)] mt-1">Questions about your accounts or payouts?</p>
           <Link to="/contact" className="btn-ghost rounded-full px-4 py-2.5 text-xs mt-4 inline-flex items-center gap-2 self-start"><LifeBuoy size={14}/> Contact support</Link>

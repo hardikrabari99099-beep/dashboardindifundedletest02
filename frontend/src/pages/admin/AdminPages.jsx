@@ -872,6 +872,8 @@ export function AdminUsers() {
             <TableHead>User</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Phone</TableHead>
+            <TableHead>APK Username</TableHead>
+            <TableHead>APK Password</TableHead>
             <TableHead>KYC</TableHead>
             <TableHead>Joined</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -882,6 +884,8 @@ export function AdminUsers() {
                 <TableCell><div className="font-medium">{u.name || "—"}</div><div className="text-[10px] text-[var(--muted-2)] font-mono">{u.id.slice(0,8)}</div></TableCell>
                 <TableCell className="font-mono text-xs">{u.email}</TableCell>
                 <TableCell className="font-mono text-xs">{u.phone || "—"}</TableCell>
+                <TableCell className="font-mono text-xs">{u.apk_username || u.email}</TableCell>
+                <TableCell className="font-mono text-xs text-[var(--accent)]">{u.apk_password || "—"}</TableCell>
                 <TableCell>
                   {u.kyc?.submitted_at
                     ? <span className="text-xs font-mono uppercase tracking-wider px-2.5 py-1 rounded-full" style={{background:"rgba(41,211,154,0.15)", color:"#29d39a"}}>Submitted</span>
@@ -893,7 +897,7 @@ export function AdminUsers() {
                 </TableCell>
               </TableRow>
             ))}
-            {!rows.length && (<TableRow className="border-[var(--border)]"><TableCell colSpan={6} className="text-center text-[var(--muted)] py-8">No users signed up yet.</TableCell></TableRow>)}
+            {!rows.length && (<TableRow className="border-[var(--border)]"><TableCell colSpan={8} className="text-center text-[var(--muted)] py-8">No users signed up yet.</TableCell></TableRow>)}
           </TableBody>
         </Table>
       </div>
