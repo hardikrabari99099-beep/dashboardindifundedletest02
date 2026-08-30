@@ -58,15 +58,6 @@ export default function UserAccounts() {
           <Link to="/challenges" className="btn-amber rounded-full px-6 py-3 text-sm mt-6 inline-flex items-center gap-2">Browse accounts <ArrowRight size={14}/></Link>
         </div>
       )}
-
-      <div className="mt-10 card-panel p-6 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
-        <div>
-          <div className="chip mb-2">New · ₹999 Starter · Limited run</div>
-          <div className="font-display text-xl">A full evaluation on ₹50,000 for ₹999</div>
-          <p className="text-xs text-[var(--muted)] mt-1 max-w-lg">Same rules, same up to 70% profit split — our cheapest way in.</p>
-        </div>
-        <Link to="/challenges" className="btn-amber rounded-full px-5 py-2.5 text-sm whitespace-nowrap">Start for ₹999</Link>
-      </div>
     </div>
   );
 }

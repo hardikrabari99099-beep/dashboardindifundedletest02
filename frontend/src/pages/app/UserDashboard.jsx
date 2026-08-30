@@ -69,15 +69,6 @@ export default function UserDashboard() {
           </div>
         )}
       </div>
-
-      <div className="mt-10 card-panel p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-6 justify-between glow-border">
-        <div>
-          <div className="chip mb-3">New · ₹999 Starter · Limited run</div>
-          <h3 className="font-display text-2xl">Try our cheapest funded evaluation</h3>
-          <p className="text-sm text-[var(--muted)] mt-2 max-w-xl">A full 2-Step evaluation on ₹50,000 of simulated capital for a one-time ₹999. Same rules, same up to 70% profit split — our cheapest way in.</p>
-        </div>
-        <Link to="/challenges" className="btn-amber rounded-full px-6 py-3 text-sm whitespace-nowrap">Start for ₹999</Link>
-      </div>
     </div>
   );
 }
