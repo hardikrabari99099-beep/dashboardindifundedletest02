@@ -18,7 +18,7 @@ export default function Layout() {
       {w.scroll_progress?.enabled !== false && <ScrollProgress />}
       <AnnouncementBar />
       <Header />
-      <main key={loc.pathname} className={`flex-1 page-transition ${loc.pathname === "/" ? "" : "pt-8 md:pt-12"}`}><Outlet /></main>
+      <main key={loc.pathname} className="flex-1 page-transition"><Outlet /></main>
       <Footer />
       <StickyCTA />
       <WhatsAppMenu />

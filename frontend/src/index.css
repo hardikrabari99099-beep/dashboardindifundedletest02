@@ -124,9 +124,9 @@ code { font-family: 'JetBrains Mono', monospace; }
 }
 
 /* utility */
-.container-xl { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+.container-xl { max-width: 1240px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
 @media (max-width: 640px) {
-  .container-xl { padding: 0 16px; }
+  .container-xl { padding-left: 16px; padding-right: 16px; }
 }
 .glass { background: rgba(20,25,34,0.6); backdrop-filter: blur(18px); border: 1px solid var(--border); }
 .divider-dot { background: radial-gradient(circle, var(--border-hi) 1px, transparent 1.5px); background-size: 14px 14px; }
