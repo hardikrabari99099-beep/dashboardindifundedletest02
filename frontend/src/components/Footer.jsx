@@ -7,7 +7,7 @@ export const Footer = () => {
   const { settings } = useSettings();
   const b = settings.brand, c = settings.contact, s = settings.social;
   return (
-    <footer className="border-t border-[var(--border)] mt-24 pt-16 pb-10" data-testid="site-footer">
+    <footer className="border-t border-[var(--border)] mt-24 pt-16 pb-16" data-testid="site-footer">
       <div className="container-xl grid md:grid-cols-4 gap-10">
         <div>
           <BrandLogo size="lg" className="mb-4" />

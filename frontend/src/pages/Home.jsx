@@ -114,7 +114,7 @@ export default function Home() {
       </section>
 
       {/* PLANS */}
-      <section className="container-xl py-24">
+      <section className="container-xl pt-36 pb-24">
         <div className="mb-12">
           <div className="chip mb-4">Plans</div>
           <h2 className="font-display text-4xl md:text-5xl max-w-3xl">Prove your skills. Pick your plan.</h2>
@@ -171,7 +171,7 @@ export default function Home() {
       {/* PROFIT CALCULATOR */}
       <ProfitCalculator />
 
-      <section className="container-xl py-24">
+      <section className="container-xl pt-36 pb-24">
         <div className="mb-12">
           <div className="chip mb-4">Stories</div>
           <h2 className="font-display text-4xl md:text-5xl max-w-3xl">Why traders choose IndiFunded</h2>
@@ -191,7 +191,7 @@ export default function Home() {
       </section>
 
       {/* BLOGS */}
-      <section className="container-xl py-24">
+      <section className="container-xl pt-36 pb-24">
         <div className="flex items-end justify-between mb-12 flex-wrap gap-4">
           <div>
             <div className="chip mb-4">Insights</div>
@@ -214,7 +214,7 @@ export default function Home() {
       </section>
 
       {/* CTA */}
-      <section className="container-xl pb-24">
+      <section className="container-xl pt-12 pb-24">
         <div className="card-panel glow-border p-10 md:p-16 flex flex-col md:flex-row items-start md:items-center justify-between gap-8" data-testid="bottom-cta">
           <div>
             <h3 className="font-display text-3xl md:text-4xl max-w-xl">Stop risking your own capital. Trade ours.</h3>
