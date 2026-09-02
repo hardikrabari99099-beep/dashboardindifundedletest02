@@ -157,7 +157,7 @@ export default function Tools() {
     path: "/tools",
   });
   return (
-    <div className="container-xl pt-28 pb-24">
+    <div className="container-xl pt-16 pb-24">
       <div className="chip mb-4">Trader Tools</div>
       <h1 className="font-display text-4xl md:text-5xl max-w-3xl" data-testid="tools-title">Free calculators for disciplined trading</h1>
       <p className="text-[var(--muted)] mt-5 max-w-2xl">Use these tools to size your trades, control drawdown and grade every setup — the same math our funded traders use.</p>

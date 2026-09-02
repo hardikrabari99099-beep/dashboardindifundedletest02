@@ -261,7 +261,7 @@ export function Contact() {
     finally { setBusy(false); }
   };
   return (
-    <div className="container-xl pt-28 pb-24">
+    <div className="container-xl pt-16 pb-24">
       <div className="chip mb-4">Contact</div>
       <h1 className="font-display text-3xl sm:text-4xl md:text-6xl max-w-3xl" data-testid="contact-title">Talk to the IndiFunded team</h1>
       <p className="text-[var(--muted)] mt-6 max-w-2xl">Our team will help you with queries and enrollment to start your challenge.</p>
