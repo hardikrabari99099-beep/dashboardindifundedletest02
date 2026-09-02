@@ -53,7 +53,7 @@ export default function Login() {
   const isSignup = mode === "signup";
 
   return (
-    <div className="container-xl pt-16 pb-24 max-w-md">
+    <div className="container-xl pt-28 pb-24 max-w-md">
       <div className="card-panel p-8 md:p-10 glow-border" data-testid="auth-card">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl grid place-items-center bg-[var(--accent)] text-white">

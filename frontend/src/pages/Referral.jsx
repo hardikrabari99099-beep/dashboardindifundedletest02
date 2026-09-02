@@ -42,7 +42,7 @@ export default function Referral() {
   };
 
   return (
-    <div className="container-xl pt-16 pb-24">
+    <div className="container-xl pt-28 pb-24">
       <div className="chip mb-4 inline-flex"><Gift size={12} className="mr-1.5"/> Refer & Earn</div>
       <h1 className="font-display text-4xl md:text-5xl max-w-3xl" data-testid="referral-title">Refer traders. Earn rewards.</h1>
       <p className="text-[var(--muted)] mt-4 max-w-2xl">Get your unique referral code. When friends purchase a challenge with your code, you earn a bonus — they get 5% off their fee.</p>
